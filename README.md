@@ -1,5 +1,7 @@
 # Aegis
 
+![Aegis](assets/Aegis.png)
+
 Lightweight self-verification for AI agents: one critique, one confidence score.
 
 ![Python](https://img.shields.io/badge/python-3.9%2B-blue)
@@ -12,30 +14,102 @@ dashboard, no benchmarking suite, and no complex judge framework.
 
 ## Quick Start
 
+### Requirements
+
+Aegis requires Python `3.9+`, `pip`, and a terminal. Check your Python version:
+
 ```bash
-python -m pip install -e .
+python3 --version
 ```
 
-After a PyPI release, install with:
+### Install From Source
+
+Run these commands from the cloned repo root, the folder that contains `pyproject.toml`:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python3 -m pip install -e .
+```
+
+`-e` means editable install: Python can import `aegis`, and local code changes are picked up immediately.
+
+After release, install from PyPI instead:
 
 ```bash
 pip install aegis-ai
 ```
 
+### First Run
+
+Run the included example:
+
+```bash
+python3 examples/simple_usage.py
+```
+
+It prints `answer`, `confidence`, and `critique`.
+
+### Create Your Own Demo
+
+Create a file:
+
+```bash
+touch demo.py
+```
+
+Open `demo.py` in your editor and add:
+
 ```python
 from aegis import Aegis
 
-base_agent = TheirExistingAgent(model="llama3.2")
-agent = Aegis(base_agent)
+class MyAgent:
+    def run(self, prompt: str) -> str:
+        if "Confidence:" in prompt:
+            return "Confidence: 70\nCritique: This is a toy answer, so it is only partially useful."
+        return "This is my agent's answer."
 
+agent = Aegis(MyAgent())
 result = agent.run("Explain vector databases in one paragraph.")
 
-print(result.answer)
-print(result.confidence)
-print(result.critique)
+print("Answer:", result.answer)
+print("Confidence:", result.confidence)
+print("Critique:", result.critique)
 ```
 
-See [Usage Guide](#usage-guide) for supported agent shapes and local examples.
+Run it:
+
+```bash
+python3 demo.py
+```
+
+Aegis calls your agent twice: once for the answer, then once for the self-critique score.
+
+## Common Issues
+
+### `zsh: command not found: python`
+
+Use `python3` instead:
+
+```bash
+python3 demo.py
+```
+
+### `ModuleNotFoundError: No module named 'aegis'`
+
+Install Aegis from the repo root:
+
+```bash
+python3 -m pip install -e .
+```
+
+### I ran `touch demo.py` and nothing happened
+
+That is normal. `touch` creates an empty file. Open it in an editor, paste the Python code, then run:
+
+```bash
+python3 demo.py
+```
 
 ## Philosophy / Non-Goals
 
@@ -54,6 +128,18 @@ It does not:
 - Act as an external AI judge
 - Provide dashboards, benchmarks, queues, or tracing
 - Replace human review for high-stakes work
+
+## V1 Scope
+
+V1 is limited to the smallest useful wrapper:
+
+- Wrap an existing agent
+- Run one self-critique step
+- Return `answer`, `confidence`, and `critique`
+- Score confidence from `0` to `100`
+- Support `run`, `invoke`, `generate`, and callable agents
+
+Everything else is deferred until after the V1 review.
 
 ## When To Use
 
