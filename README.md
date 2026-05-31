@@ -2,15 +2,16 @@
 
 ![Aegis](assets/Aegis.png)
 
-Lightweight self-verification for AI agents: one critique, one confidence score.
+Lightweight evaluator wrapper for AI agents: one critique, one confidence score.
 
 ![Python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Status](https://img.shields.io/badge/status-alpha-orange)
 
-Aegis wraps an existing agent with one simple self-critique step and returns a
-confidence score from `0` to `100`. It is intentionally small: no retries, no
-dashboard, no benchmarking suite, and no complex judge framework.
+Aegis evaluates an agent's output by adding one model-backed critique step and
+returning a confidence score from `0` to `100`. In V1, the evaluator can be the
+wrapped agent itself or an optional connected LLM such as DeepSeek through
+OpenRouter.
 
 ## Quick Start
 
@@ -42,13 +43,13 @@ pip install aegis-ai
 
 ### First Run
 
-Run the included example:
+Run the included mock example:
 
 ```bash
 python3 examples/simple_usage.py
 ```
 
-It prints `answer`, `confidence`, and `critique`.
+It prints `answer`, `confidence`, and `critique` without making network calls.
 
 ### Create Your Own Demo
 
@@ -85,6 +86,18 @@ python3 demo.py
 
 Aegis calls your agent twice: once for the answer, then once for the self-critique score.
 
+### Optional Model-Backed Evaluation
+
+To run Aegis with DeepSeek V4 Flash through OpenRouter, set your own API key locally:
+
+```bash
+export OPENROUTER_API_KEY="your_key_here"
+python3 examples/openrouter_deepseek.py
+```
+
+This lets Aegis generate the critique and confidence score through a real LLM.
+Do not commit API keys to GitHub.
+
 ## Common Issues
 
 ### `zsh: command not found: python`
@@ -113,12 +126,12 @@ python3 demo.py
 
 ## Philosophy / Non-Goals
 
-Aegis is a minimal reliability wrapper, not a full evaluation platform.
+Aegis is a minimal evaluator wrapper, not a full evaluation platform.
 
 It does:
 
 - Run your existing agent once for an answer
-- Run one self-critique pass
+- Run one model-backed critique pass
 - Return `answer`, `confidence`, and `critique`
 
 It does not:
@@ -134,10 +147,11 @@ It does not:
 V1 is limited to the smallest useful wrapper:
 
 - Wrap an existing agent
-- Run one self-critique step
+- Run one critique step with the wrapped agent or a connected model
 - Return `answer`, `confidence`, and `critique`
 - Score confidence from `0` to `100`
 - Support `run`, `invoke`, `generate`, and callable agents
+- Include an optional OpenRouter/DeepSeek example for real model-backed evaluation
 
 Everything else is deferred until after the V1 review.
 
@@ -146,7 +160,7 @@ Everything else is deferred until after the V1 review.
 Use Aegis when:
 
 - You already have an agent and want a lightweight confidence signal.
-- You want one extra self-check without changing your agent architecture.
+- You want one extra evaluator pass without changing your agent architecture.
 - You need a simple result object for routing, logging, or review thresholds.
 - Your team wants a small reliability layer before investing in a full eval stack.
 
@@ -162,7 +176,7 @@ Do not use Aegis when:
 Every `Aegis.run(prompt)` call does two things:
 
 1. Ask your existing agent for an answer.
-2. Ask the same agent to critique that answer and assign a confidence score.
+2. Ask the same agent, or a connected model-backed agent, to critique that answer and assign a confidence score.
 
 The result is an `AegisResult`:
 

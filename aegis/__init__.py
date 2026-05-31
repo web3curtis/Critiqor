@@ -1,4 +1,4 @@
-"""Aegis: a lightweight self-verification wrapper for AI agents."""
+"""Aegis: a lightweight evaluator wrapper for AI agents."""
 
 from .core import Aegis, AegisResult
 

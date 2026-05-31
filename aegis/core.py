@@ -1,4 +1,4 @@
-"""Core Aegis wrapper implementation."""
+"""Core Aegis evaluator wrapper implementation."""
 
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ class AegisResult:
 
 
 class Aegis:
-    """A minimal self-verification wrapper for existing AI agents.
+    """A minimal evaluator wrapper for existing AI agents.
 
     Aegis calls the wrapped agent once to answer the user's prompt, then calls it
     once more to produce a short critique and confidence score.
@@ -115,9 +115,9 @@ class Aegis:
 
     @staticmethod
     def _build_critique_prompt(prompt: str, answer: str) -> str:
-        """Build the single self-critique prompt used by Aegis V1."""
+        """Build the single evaluator prompt used by Aegis V1."""
 
-        return f"""You are Aegis, a lightweight self-verification layer.
+        return f"""You are Aegis, a lightweight evaluator wrapper for AI agents.
 
 Review the answer below against the user's prompt. Give a confidence score from
 0 to 100 using this exact scale:
