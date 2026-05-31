@@ -1,6 +1,6 @@
-# Aegis
+# Critiqor
 
-![Aegis](assets/Aegis.png)
+![Critiqor](assets/Critiqor.png)
 
 Lightweight evaluator wrapper for AI agents: one critique, one confidence score.
 
@@ -8,7 +8,7 @@ Lightweight evaluator wrapper for AI agents: one critique, one confidence score.
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Status](https://img.shields.io/badge/status-alpha-orange)
 
-Aegis evaluates an agent's output by adding one model-backed critique step and
+Critiqor evaluates an agent's output by adding one model-backed critique step and
 returning a confidence score from `0` to `100`. In V1, the evaluator can be the
 wrapped agent itself or an optional connected LLM through OpenRouter.
 
@@ -16,7 +16,7 @@ wrapped agent itself or an optional connected LLM through OpenRouter.
 
 ### Requirements
 
-Aegis requires Python `3.9+`, `pip`, and a terminal. Check your Python version:
+Critiqor requires Python `3.9+`, `pip`, and a terminal. Check your Python version:
 
 ```bash
 python3 --version
@@ -32,12 +32,12 @@ source .venv/bin/activate
 python3 -m pip install -e .
 ```
 
-`-e` means editable install: Python can import `aegis`, and local code changes are picked up immediately.
+`-e` means editable install: Python can import `critiqor`, and local code changes are picked up immediately.
 
 After release, install from PyPI instead:
 
 ```bash
-pip install aegis-ai
+pip install critiqor-ai
 ```
 
 ### First Run
@@ -61,7 +61,7 @@ touch demo.py
 Open `demo.py` in your editor and add:
 
 ```python
-from aegis import Aegis
+from critiqor import Critiqor
 
 class MyAgent:
     def run(self, prompt: str) -> str:
@@ -69,7 +69,7 @@ class MyAgent:
             return "Confidence: 70\nCritique: This is a toy answer, so it is only partially useful."
         return "This is my agent's answer."
 
-agent = Aegis(MyAgent())
+agent = Critiqor(MyAgent())
 result = agent.run("Explain vector databases in one paragraph.")
 
 print("Answer:", result.answer)
@@ -83,11 +83,11 @@ Run it:
 python3 demo.py
 ```
 
-Aegis calls your agent twice: once for the answer, then once for the self-critique score.
+Critiqor calls your agent twice: once for the answer, then once for the self-critique score.
 
 ### Optional Model-Backed Evaluation
 
-Aegis does not include an API key. The repo contains example code that reads
+Critiqor does not include an API key. The repo contains example code that reads
 `OPENROUTER_API_KEY`; your computer stores the real key locally.
 
 To keep the key available after the terminal is closed, use one of these options.
@@ -97,7 +97,7 @@ Best for this repo: `.env`
 Create a local `.env` file in the repo root:
 
 ```bash
-cd path/to/aegis
+cd path/to/critiqor
 cp .env.example .env
 ```
 
@@ -150,7 +150,7 @@ source ~/.zshrc
 ```
 
 Then every new terminal automatically has the key. This is convenient, but
-broader: any terminal project can access that key. For Aegis, `.env` is cleaner
+broader: any terminal project can access that key. For Critiqor, `.env` is cleaner
 because it is local to the repo.
 
 Important: do not commit `.env`. Commit `.env.example` instead:
@@ -169,9 +169,9 @@ Use `python3` instead:
 python3 demo.py
 ```
 
-### `ModuleNotFoundError: No module named 'aegis'`
+### `ModuleNotFoundError: No module named 'critiqor'`
 
-Install Aegis from the repo root:
+Install Critiqor from the repo root:
 
 ```bash
 python3 -m pip install -e .
@@ -187,7 +187,7 @@ python3 demo.py
 
 ## Philosophy / Non-Goals
 
-Aegis is a minimal evaluator wrapper, not a full evaluation platform.
+Critiqor is a minimal evaluator wrapper, not a full evaluation platform.
 
 It does:
 
@@ -218,14 +218,14 @@ Everything else is deferred until after the V1 review.
 
 ## When To Use
 
-Use Aegis when:
+Use Critiqor when:
 
 - You already have an agent and want a lightweight confidence signal.
 - You want one extra evaluator pass without changing your agent architecture.
 - You need a simple result object for routing, logging, or review thresholds.
 - Your team wants a small reliability layer before investing in a full eval stack.
 
-Do not use Aegis when:
+Do not use Critiqor when:
 
 - You need rigorous offline benchmarking or dataset-based evaluation.
 - You need independent model grading instead of self-critique.
@@ -234,12 +234,12 @@ Do not use Aegis when:
 
 ## How It Works
 
-Every `Aegis.run(prompt)` call does two things:
+Every `Critiqor.run(prompt)` call does two things:
 
 1. Ask your existing agent for an answer.
 2. Ask the same agent, or a connected model-backed agent, to critique that answer and assign a confidence score.
 
-The result is an `AegisResult`:
+The result is a `CritiqorResult`:
 
 ```python
 result.answer      # str
@@ -251,7 +251,7 @@ See [Confidence Scoring](#confidence-scoring) for the scoring rubric.
 
 ## Confidence Scoring
 
-Aegis asks the wrapped agent to score its answer using this exact rubric:
+Critiqor asks the wrapped agent to score its answer using this exact rubric:
 
 | Score | Label | Justification |
 | --- | --- | --- |
@@ -268,7 +268,7 @@ that band.
 
 ### Supported Agents
 
-Aegis can wrap any object that exposes one of these interfaces:
+Critiqor can wrap any object that exposes one of these interfaces:
 
 - `run(prompt)`
 - `invoke(prompt)`
@@ -277,7 +277,7 @@ Aegis can wrap any object that exposes one of these interfaces:
 
 The base agent only needs to accept a prompt and return a text-like response.
 
-Aegis can extract text from:
+Critiqor can extract text from:
 
 - Plain strings
 - Objects with `.content`, `.text`, `.answer`, or `.output`
@@ -286,7 +286,7 @@ Aegis can extract text from:
 ### Basic Example
 
 ```python
-from aegis import Aegis
+from critiqor import Critiqor
 
 
 class TheirExistingAgent:
@@ -298,11 +298,11 @@ class TheirExistingAgent:
                 "are not fully supported by evidence."
             )
 
-        return "Aegis adds one self-critique step and returns a confidence score."
+        return "Critiqor adds one self-critique step and returns a confidence score."
 
 
-agent = Aegis(TheirExistingAgent())
-result = agent.run("What does Aegis do?")
+agent = Critiqor(TheirExistingAgent())
+result = agent.run("What does Critiqor do?")
 
 print(result.answer)
 print(result.confidence)
@@ -312,7 +312,7 @@ print(result.critique)
 ### Callable Agent
 
 ```python
-from aegis import Aegis
+from critiqor import Critiqor
 
 
 def agent_fn(prompt: str) -> str:
@@ -321,14 +321,14 @@ def agent_fn(prompt: str) -> str:
     return "This answer came from a callable agent."
 
 
-agent = Aegis(agent_fn)
+agent = Critiqor(agent_fn)
 result = agent.run("Say something concise.")
 ```
 
 ### Dict Response
 
 ```python
-from aegis import Aegis
+from critiqor import Critiqor
 
 
 class InvokeAgent:
@@ -338,7 +338,7 @@ class InvokeAgent:
         return {"text": "This answer came from invoke()."}
 
 
-agent = Aegis(InvokeAgent())
+agent = Critiqor(InvokeAgent())
 result = agent.run("Explain the wrapper.")
 ```
 
@@ -367,16 +367,16 @@ unsupported agent objects.
 
 ## API Reference
 
-### `Aegis(agent)`
+### `Critiqor(agent)`
 
 Wraps an existing agent and adds one self-verification pass.
 
-### `Aegis.run(prompt, *args, **kwargs)`
+### `Critiqor.run(prompt, *args, **kwargs)`
 
 Runs the base agent once for the answer and once for the critique. Extra
 arguments are forwarded to the answer-generation call.
 
-### `AegisResult`
+### `CritiqorResult`
 
 ```python
 answer: str
@@ -386,7 +386,7 @@ critique: str
 
 ## Roadmap / Status
 
-Aegis is currently `0.1.0` alpha. V1 is intentionally minimal and focused on
+Critiqor is currently `0.1.0` alpha. V1 is intentionally minimal and focused on
 the wrapper contract.
 
 Planned future directions:
@@ -402,7 +402,7 @@ developer-first wrapper that is easy to understand and easy to remove.
 
 ## Included Files
 
-- `aegis/core.py`: Core wrapper and result object
+- `critiqor/core.py`: Core wrapper and result object
 - `examples/simple_usage.py`: Minimal copy-paste example
 - `examples/openrouter_model.py`: Optional model-backed OpenRouter example
 - `experiments/sandbox_eval.py`: End-to-end smoke demo

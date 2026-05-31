@@ -1,4 +1,4 @@
-"""Minimal sandbox experiment for validating Aegis end to end."""
+"""Minimal sandbox experiment for validating Critiqor end to end."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from aegis import Aegis
+from critiqor import Critiqor
 
 
 class DemoAgent:
@@ -23,14 +23,14 @@ class DemoAgent:
             )
 
         return (
-            "Aegis wraps an existing agent, asks it for one self-critique, and "
+            "Critiqor wraps an existing agent, asks it for one self-critique, and "
             "returns the original answer with a confidence score."
         )
 
 
 def main() -> None:
-    verified_agent = Aegis(DemoAgent(model="llama3.2"))
-    result = verified_agent.run("Explain Aegis in one sentence.")
+    verified_agent = Critiqor(DemoAgent(model="llama3.2"))
+    result = verified_agent.run("Explain Critiqor in one sentence.")
 
     print("answer:", result.answer)
     print("confidence:", result.confidence)

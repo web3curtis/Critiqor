@@ -1,4 +1,4 @@
-"""Run Aegis with an OpenRouter text model.
+"""Run Critiqor with an OpenRouter text model.
 
 Set OPENROUTER_API_KEY before running, or create a local .env file:
 
@@ -18,14 +18,14 @@ from dotenv import load_dotenv
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from aegis import Aegis
+from critiqor import Critiqor
 
 
 MODEL = "deepseek/deepseek-v4-flash:free"
 
 
 class OpenRouterAgent:
-    """Small OpenRouter-backed agent compatible with Aegis."""
+    """Small OpenRouter-backed agent compatible with Critiqor."""
 
     def __init__(self, model: str):
         self.model = model
@@ -33,8 +33,8 @@ class OpenRouterAgent:
             base_url="https://openrouter.ai/api/v1",
             api_key=os.environ["OPENROUTER_API_KEY"],
             default_headers={
-                "HTTP-Referer": "https://github.com/web3curtis/aegis",
-                "X-Title": "Aegis",
+                "HTTP-Referer": "https://github.com/web3curtis/critiqor",
+                "X-Title": "Critiqor",
             },
         )
 
@@ -55,8 +55,8 @@ def main() -> None:
             "Missing OPENROUTER_API_KEY. Copy .env.example to .env and add your key."
         )
 
-    agent = Aegis(OpenRouterAgent(MODEL))
-    result = agent.run("Explain what Aegis does in one paragraph.")
+    agent = Critiqor(OpenRouterAgent(MODEL))
+    result = agent.run("Explain what Critiqor does in one paragraph.")
 
     print("Answer:", result.answer)
     print("Confidence:", result.confidence)

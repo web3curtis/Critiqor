@@ -3,12 +3,12 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "aegis-ai"
+name = "critiqor-ai"
 version = "0.1.0"
 description = "A lightweight evaluator wrapper for AI agents."
 readme = "README.md"
 requires-python = ">=3.9"
-authors = [{ name = "Aegis Contributors" }]
+authors = [{ name = "Critiqor Contributors" }]
 license = { text = "MIT" }
 keywords = ["ai", "agents", "evaluation", "verification", "confidence", "sdk"]
 classifiers = [
@@ -27,4 +27,4 @@ classifiers = [
 openrouter = ["openai>=1.0", "python-dotenv>=1.0"]
 
 [tool.setuptools.packages.find]
-include = ["aegis*"]
+include = ["critiqor*"]

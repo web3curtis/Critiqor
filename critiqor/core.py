@@ -1,4 +1,4 @@
-"""Core Aegis evaluator wrapper implementation."""
+"""Core Critiqor evaluator wrapper implementation."""
 
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ class RunnableAgent(Protocol):
 
 
 @dataclass(frozen=True)
-class AegisResult:
-    """The result returned by Aegis.
+class CritiqorResult:
+    """The result returned by Critiqor.
 
     Attributes:
         answer: The original answer from the wrapped agent.
@@ -30,15 +30,15 @@ class AegisResult:
     critique: str
 
 
-class Aegis:
+class Critiqor:
     """A minimal evaluator wrapper for existing AI agents.
 
-    Aegis calls the wrapped agent once to answer the user's prompt, then calls it
+    Critiqor calls the wrapped agent once to answer the user's prompt, then calls it
     once more to produce a short critique and confidence score.
     """
 
     def __init__(self, agent: Any):
-        """Create an Aegis wrapper.
+        """Create a Critiqor wrapper.
 
         Args:
             agent: Any object that can be called via ``run(prompt)``,
@@ -47,7 +47,7 @@ class Aegis:
 
         self.agent = agent
 
-    def run(self, prompt: str, *args: Any, **kwargs: Any) -> AegisResult:
+    def run(self, prompt: str, *args: Any, **kwargs: Any) -> CritiqorResult:
         """Run the wrapped agent and return an answer with self-verification.
 
         Args:
@@ -58,7 +58,7 @@ class Aegis:
                 the answer-generation call.
 
         Returns:
-            AegisResult containing the answer, confidence score, and critique.
+            CritiqorResult containing the answer, confidence score, and critique.
         """
 
         raw_answer = self._call_agent(prompt, *args, **kwargs)
@@ -71,7 +71,7 @@ class Aegis:
         confidence = self._parse_confidence(critique_text)
         critique = self._parse_critique(critique_text)
 
-        return AegisResult(
+        return CritiqorResult(
             answer=answer,
             confidence=confidence,
             critique=critique,
@@ -90,7 +90,7 @@ class Aegis:
             return self.agent(prompt, *args, **kwargs)
 
         raise TypeError(
-            "Aegis requires an agent with run(), invoke(), generate(), or __call__()."
+            "Critiqor requires an agent with run(), invoke(), generate(), or __call__()."
         )
 
     @staticmethod
@@ -115,9 +115,9 @@ class Aegis:
 
     @staticmethod
     def _build_critique_prompt(prompt: str, answer: str) -> str:
-        """Build the single evaluator prompt used by Aegis V1."""
+        """Build the single evaluator prompt used by Critiqor V1."""
 
-        return f"""You are Aegis, a lightweight evaluator wrapper for AI agents.
+        return f"""You are Critiqor, a lightweight evaluator wrapper for AI agents.
 
 Review the answer below against the user's prompt. Give a confidence score from
 0 to 100 using this exact scale:

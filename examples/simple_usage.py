@@ -1,4 +1,4 @@
-"""Simple Aegis usage example."""
+"""Simple Critiqor usage example."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from aegis import Aegis
+from critiqor import Critiqor
 
 
 class TheirExistingAgent:
@@ -24,14 +24,14 @@ class TheirExistingAgent:
                 "are not fully supported by evidence."
             )
 
-        return "Aegis adds one self-critique step and returns a confidence score."
+        return "Critiqor adds one self-critique step and returns a confidence score."
 
 
 base_agent = TheirExistingAgent(model="llama3.2")
 
-verified_agent = Aegis(base_agent)
+verified_agent = Critiqor(base_agent)
 
-result = verified_agent.run("What does Aegis do?")
+result = verified_agent.run("What does Critiqor do?")
 
 print(result.answer)
 print(result.confidence)

@@ -1,10 +1,10 @@
-"""Stdlib tests for the minimal Aegis wrapper."""
+"""Stdlib tests for the minimal Critiqor wrapper."""
 
 from __future__ import annotations
 
 import unittest
 
-from aegis import Aegis
+from critiqor import Critiqor
 
 
 class RunAgent:
@@ -34,9 +34,9 @@ class UnsupportedAgent:
     pass
 
 
-class AegisTests(unittest.TestCase):
+class CritiqorTests(unittest.TestCase):
     def test_run_returns_structured_result(self) -> None:
-        result = Aegis(RunAgent()).run("What is the capital of France?")
+        result = Critiqor(RunAgent()).run("What is the capital of France?")
 
         self.assertEqual(result.answer, "Paris is the capital of France.")
         self.assertEqual(result.confidence, 92)
@@ -46,7 +46,7 @@ class AegisTests(unittest.TestCase):
         )
 
     def test_invoke_agents_are_supported(self) -> None:
-        result = Aegis(InvokeAgent()).run("Say something helpful.")
+        result = Critiqor(InvokeAgent()).run("Say something helpful.")
 
         self.assertEqual(result.answer, "This is an answer from invoke().")
         self.assertEqual(result.confidence, 68)
@@ -56,7 +56,7 @@ class AegisTests(unittest.TestCase):
         )
 
     def test_unstructured_critique_still_parses(self) -> None:
-        result = Aegis(UnstructuredCritiqueAgent()).run("Try a fuzzy task.")
+        result = Critiqor(UnstructuredCritiqueAgent()).run("Try a fuzzy task.")
 
         self.assertEqual(result.confidence, 81)
         self.assertEqual(
@@ -66,7 +66,7 @@ class AegisTests(unittest.TestCase):
 
     def test_unsupported_agents_raise_a_clear_error(self) -> None:
         with self.assertRaises(TypeError):
-            Aegis(UnsupportedAgent()).run("Hello")
+            Critiqor(UnsupportedAgent()).run("Hello")
 
 
 if __name__ == "__main__":
