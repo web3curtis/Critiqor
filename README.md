@@ -88,7 +88,7 @@ Aegis calls your agent twice: once for the answer, then once for the self-critiq
 
 ### Optional Model-Backed Evaluation
 
-To run Aegis with DeepSeek V4 Flash through OpenRouter, set your own API key locally:
+To run Aegis, use a free model from OpenRouter, preferably DeepSeek V4 Flash, and set your own API key locally:
 
 ```bash
 export OPENROUTER_API_KEY="your_key_here"
