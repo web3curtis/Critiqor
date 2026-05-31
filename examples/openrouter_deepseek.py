@@ -1,8 +1,9 @@
 """Run Aegis with DeepSeek V4 Flash through OpenRouter.
 
-Set OPENROUTER_API_KEY before running:
+Set OPENROUTER_API_KEY before running, or create a local .env file:
 
-    export OPENROUTER_API_KEY="your_key_here"
+    cp .env.example .env
+    # edit .env and replace the placeholder key
     python3 examples/openrouter_deepseek.py
 """
 
@@ -20,6 +21,21 @@ from aegis import Aegis
 
 
 MODEL = "deepseek/deepseek-v4-flash:free"
+
+
+def load_local_env() -> None:
+    """Load simple KEY=VALUE pairs from a local .env file if present."""
+
+    env_path = Path(__file__).resolve().parents[1] / ".env"
+    if not env_path.exists():
+        return
+
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        os.environ.setdefault(key.strip(), value.strip().strip('"').strip("'"))
 
 
 class OpenRouterAgent:
@@ -46,9 +62,11 @@ class OpenRouterAgent:
 
 
 def main() -> None:
+    load_local_env()
+
     if "OPENROUTER_API_KEY" not in os.environ:
         raise SystemExit(
-            "Missing OPENROUTER_API_KEY. Run: export OPENROUTER_API_KEY=\"your_key_here\""
+            "Missing OPENROUTER_API_KEY. Copy .env.example to .env and add your key."
         )
 
     agent = Aegis(OpenRouterAgent(MODEL))

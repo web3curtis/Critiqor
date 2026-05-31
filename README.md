@@ -88,15 +88,36 @@ Aegis calls your agent twice: once for the answer, then once for the self-critiq
 
 ### Optional Model-Backed Evaluation
 
-To run Aegis, use a free model from OpenRouter, preferably DeepSeek V4 Flash, and set your own API key locally:
+Aegis does not include an API key. To run Aegis with a free OpenRouter model,
+preferably DeepSeek V4 Flash, the repo reads `OPENROUTER_API_KEY` from your
+computer.
+
+To keep the key available after closing the terminal, create a local `.env` file
+in the repo root:
 
 ```bash
-export OPENROUTER_API_KEY="your_key_here"
+cp .env.example .env
+```
+
+Open `.env` and replace the placeholder:
+
+```bash
+OPENROUTER_API_KEY=your_real_key_here
+```
+
+`.env` is ignored by Git, so your real key stays on your computer and is not
+pushed to GitHub.
+
+Run the DeepSeek V4 Flash example:
+
+```bash
 python3 examples/openrouter_deepseek.py
 ```
 
+The script loads `.env` each time it starts, so `os.environ["OPENROUTER_API_KEY"]`
+works in a new terminal session without running `export` again.
+
 This lets Aegis generate the critique and confidence score through a real LLM.
-Do not commit API keys to GitHub.
 
 ## Common Issues
 
