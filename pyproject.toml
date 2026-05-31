@@ -23,5 +23,8 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
+[project.optional-dependencies]
+openrouter = ["openai>=1.0", "python-dotenv>=1.0"]
+
 [tool.setuptools.packages.find]
 include = ["aegis*"]

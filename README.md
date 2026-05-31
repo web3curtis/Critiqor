@@ -10,8 +10,7 @@ Lightweight evaluator wrapper for AI agents: one critique, one confidence score.
 
 Aegis evaluates an agent's output by adding one model-backed critique step and
 returning a confidence score from `0` to `100`. In V1, the evaluator can be the
-wrapped agent itself or an optional connected LLM such as DeepSeek through
-OpenRouter.
+wrapped agent itself or an optional connected LLM through OpenRouter.
 
 ## Quick Start
 
@@ -88,36 +87,77 @@ Aegis calls your agent twice: once for the answer, then once for the self-critiq
 
 ### Optional Model-Backed Evaluation
 
-Aegis does not include an API key. To run Aegis with a free OpenRouter model,
-preferably DeepSeek V4 Flash, the repo reads `OPENROUTER_API_KEY` from your
-computer.
+Aegis does not include an API key. The repo contains example code that reads
+`OPENROUTER_API_KEY`; your computer stores the real key locally.
 
-To keep the key available after closing the terminal, create a local `.env` file
-in the repo root:
+To keep the key available after the terminal is closed, use one of these options.
+
+Best for this repo: `.env`
+
+Create a local `.env` file in the repo root:
 
 ```bash
+cd path/to/aegis
 cp .env.example .env
 ```
 
-Open `.env` and replace the placeholder:
+Add your key inside `.env`:
 
 ```bash
 OPENROUTER_API_KEY=your_real_key_here
 ```
 
-`.env` is ignored by Git, so your real key stays on your computer and is not
-pushed to GitHub.
-
-Run the DeepSeek V4 Flash example:
+Make sure `.env` is ignored by Git:
 
 ```bash
-python3 examples/openrouter_deepseek.py
+echo ".env" >> .gitignore
 ```
 
-The script loads `.env` each time it starts, so `os.environ["OPENROUTER_API_KEY"]`
-works in a new terminal session without running `export` again.
+Install dotenv:
 
-This lets Aegis generate the critique and confidence score through a real LLM.
+```bash
+python3 -m pip install -e ".[openrouter]"
+```
+
+The OpenRouter example loads `.env` with:
+
+```python
+from dotenv import load_dotenv
+
+load_dotenv()
+```
+
+After that, this works even in a new terminal:
+
+```bash
+python3 examples/openrouter_model.py
+```
+
+Why it works:
+
+- `.env` stays saved on your computer.
+- `load_dotenv()` reads `.env` every time the script runs.
+- `os.environ["OPENROUTER_API_KEY"]` finds the key after `.env` is loaded.
+- GitHub never gets your real key.
+
+Alternative: shell profile
+
+Add the key to `~/.zshrc`:
+
+```bash
+echo 'export OPENROUTER_API_KEY="your_real_key_here"' >> ~/.zshrc
+source ~/.zshrc
+```
+
+Then every new terminal automatically has the key. This is convenient, but
+broader: any terminal project can access that key. For Aegis, `.env` is cleaner
+because it is local to the repo.
+
+Important: do not commit `.env`. Commit `.env.example` instead:
+
+```bash
+OPENROUTER_API_KEY=your_openrouter_key_here
+```
 
 ## Common Issues
 
@@ -172,7 +212,7 @@ V1 is limited to the smallest useful wrapper:
 - Return `answer`, `confidence`, and `critique`
 - Score confidence from `0` to `100`
 - Support `run`, `invoke`, `generate`, and callable agents
-- Include an optional OpenRouter/DeepSeek example for real model-backed evaluation
+- Include an optional OpenRouter model example for real model-backed evaluation
 
 Everything else is deferred until after the V1 review.
 
@@ -362,7 +402,8 @@ developer-first wrapper that is easy to understand and easy to remove.
 
 ## Included Files
 
-- [aegis/core.py](</Users/curtisqiu/Documents/Agent Evaluation/aegis/core.py:1>): Core wrapper and result object
-- [examples/simple_usage.py](</Users/curtisqiu/Documents/Agent Evaluation/examples/simple_usage.py:1>): Minimal copy-paste example
-- [experiments/sandbox_eval.py](</Users/curtisqiu/Documents/Agent Evaluation/experiments/sandbox_eval.py:1>): End-to-end smoke demo
-- [tests/test_core.py](</Users/curtisqiu/Documents/Agent Evaluation/tests/test_core.py:1>): Focused regression tests
+- `aegis/core.py`: Core wrapper and result object
+- `examples/simple_usage.py`: Minimal copy-paste example
+- `examples/openrouter_model.py`: Optional model-backed OpenRouter example
+- `experiments/sandbox_eval.py`: End-to-end smoke demo
+- `tests/test_core.py`: Focused regression tests
