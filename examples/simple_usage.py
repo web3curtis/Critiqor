@@ -17,14 +17,22 @@ class TheirExistingAgent:
         self.model = model
 
     def run(self, prompt: str) -> str:
-        if "Confidence:" in prompt:
+        if "Hallucination:" in prompt:
             return (
-                "Confidence: 86\n"
-                "Critique: Clear and useful overall, with minor assumptions that "
-                "are not fully supported by evidence."
+                "Hallucination: 88\n"
+                "Reasoning: 84\n"
+                "Tool Reliability: 90\n"
+                "Consistency: 86\n"
+                "Task Completion: 82\n"
+                "Confidence Calibration: 80\n"
+                "Execution Efficiency: 92\n"
+                "Evidence Level: response_only\n"
+                "Summary: Reliable overall, with minor assumptions that are not fully supported.\n"
+                "Findings:\n"
+                "- The answer is clear but lightly underspecified."
             )
 
-        return "Critiqor adds one self-critique step and returns a confidence score."
+        return "Critiqor adds one agent-focused reliability critique step."
 
 
 base_agent = TheirExistingAgent(model="llama3.2")
@@ -35,4 +43,9 @@ result = verified_agent.run("What does Critiqor do?")
 
 print(result.answer)
 print(result.confidence)
+print(result.evaluation_confidence)
+print(result.deployment_recommendation)
+print(result.trust_level)
+print(result.critique.evidence_level)
+print(result.failure_causes)
 print(result.critique)

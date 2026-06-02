@@ -15,16 +15,24 @@ class DemoAgent:
         self.model = model
 
     def run(self, prompt: str) -> str:
-        if "Confidence:" in prompt:
+        if "Hallucination:" in prompt:
             return (
-                "Confidence: 84\n"
-                "Critique: Accurate and clear overall, with a small assumption about "
-                "performance that is not explicitly supported."
+                "Hallucination: 82\n"
+                "Reasoning: 78\n"
+                "Tool Reliability: 76\n"
+                "Consistency: 84\n"
+                "Task Completion: 80\n"
+                "Confidence Calibration: 74\n"
+                "Execution Efficiency: 79\n"
+                "Evidence Level: response_only\n"
+                "Summary: Mostly reliable, but command and tool-use details should be verified.\n"
+                "Findings:\n"
+                "- The answer is useful but makes a few assumptions about the agent environment."
             )
 
         return (
-            "Critiqor wraps an existing agent, asks it for one self-critique, and "
-            "returns the original answer with a confidence score."
+            "Critiqor evaluates an agent response against observable evidence "
+            "and returns structured scoring for agent-specific risks."
         )
 
 
@@ -34,6 +42,10 @@ def main() -> None:
 
     print("answer:", result.answer)
     print("confidence:", result.confidence)
+    print("evaluation_confidence:", result.evaluation_confidence)
+    print("deployment_recommendation:", result.deployment_recommendation)
+    print("failure_causes:", result.failure_causes)
+    print("trust_level:", result.trust_level)
     print("critique:", result.critique)
 
 

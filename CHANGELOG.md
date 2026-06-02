@@ -5,8 +5,9 @@
 Initial V1 release of Critiqor.
 
 - Added the `Critiqor` wrapper for existing agents.
-- Added the `CritiqorResult` result object with `answer`, `confidence`, and `critique`.
-- Added one self-critique pass after the base agent answer.
-- Added confidence scoring from `0` to `100` using the V1 rubric.
+- Added the `CritiqorResult` result object with `answer`, `confidence`, `trust_level`, and `critique`.
+- Added one agent-focused reliability critique pass after the base agent answer.
+- Added multi-dimensional scoring for hallucination risk, reasoning, tool use, consistency, and task completion.
+- Added trust labels: `High`, `Moderate`, and `Low`.
 - Added support for agents with `run`, `invoke`, `generate`, or `__call__`.
 - Added README onboarding, simple usage example, sandbox experiment, and focused tests.
