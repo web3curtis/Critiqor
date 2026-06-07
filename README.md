@@ -2,7 +2,6 @@
 
 ![Critiqor for OpenClaw Runtime Reliability Intelligence](assets/CritiqorOpenClawBanner.png)
 
-Evidence-first reliability feedback for AI agents.
 
 ![Python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
