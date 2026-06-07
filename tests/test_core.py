@@ -19,6 +19,10 @@ from critiqor import (
     analyze_trends,
     attach_critiqor,
     benchmark_run,
+    monitor_openclaw_process,
+    diagnose_openclaw_events,
+    default_openclaw_benchmark_spec,
+    build_openclaw_run_payload,
     build_causal_graph,
     certification_criteria_table,
     certify_run,
@@ -39,6 +43,7 @@ from critiqor import (
     submit_run,
 )
 from critiqor.cli import main as cli_main
+from critiqor.dashboard import _render_route
 
 
 class RunAgent:
@@ -105,6 +110,26 @@ class TraceJudge:
             "Findings:\n"
             "- Tool evidence supports the final response."
         )
+
+
+def benchmark_spec(benchmark_id: str = "general_v1", category: str = "general") -> dict:
+    return BenchmarkSpec(
+        benchmark_id=benchmark_id,
+        category=category,
+        version="v1.0",
+        weights={
+            "hallucination": 0.25,
+            "reasoning": 0.25,
+            "tool_use": 0.25,
+            "confidence_calibration": 0.25,
+        },
+        difficulty_factors={
+            "task_complexity": 70,
+            "tool_usage_requirements": 70,
+            "multi_step_reasoning": 70,
+            "retrieval_dependency": 70,
+        },
+    ).to_dict()
 
 
 class CritiqorTests(unittest.TestCase):
@@ -649,6 +674,8 @@ class CritiqorTests(unittest.TestCase):
                 "agent_id": "agent_a",
                 "agent_name": "Agent A",
                 "category": "coding_agents",
+                "benchmark_id": "coding_v1",
+                "benchmark_spec": benchmark_spec("coding_v1", "coding_agents"),
                 "local_run_id": "local-1",
                 "trust_score": 91,
                 "scores": {"reasoning": 90, "tool_reliability": 92},
@@ -660,6 +687,8 @@ class CritiqorTests(unittest.TestCase):
                 "agent_id": "agent_a",
                 "agent_name": "Agent A",
                 "category": "coding_agents",
+                "benchmark_id": "coding_v1",
+                "benchmark_spec": benchmark_spec("coding_v1", "coding_agents"),
                 "local_run_id": "local-1",
                 "trust_score": 91,
                 "scores": {"reasoning": 90, "tool_reliability": 92},
@@ -671,6 +700,8 @@ class CritiqorTests(unittest.TestCase):
                 "agent_id": "agent_b",
                 "agent_name": "Agent B",
                 "category": "coding_agents",
+                "benchmark_id": "coding_v1",
+                "benchmark_spec": benchmark_spec("coding_v1", "coding_agents"),
                 "trust_score": 84,
                 "scores": {"reasoning": 84, "tool_reliability": 80},
                 "failure_causes": [
@@ -690,8 +721,14 @@ class CritiqorTests(unittest.TestCase):
         failures = index.analytics.failure_distribution()
 
         self.assertEqual(first.status, "accepted")
+        self.assertEqual(duplicate.status, "duplicate")
         self.assertEqual(first.run_id, duplicate.run_id)
         self.assertEqual(leaderboard["rankings"][0]["agent_id"], "agent_a")
+        self.assertIn("score_breakdown", leaderboard["rankings"][0])
+        self.assertIn("evidence", leaderboard["rankings"][0])
+        self.assertIn("reasoning", leaderboard["rankings"][0])
+        self.assertIn("impact", leaderboard["rankings"][0])
+        self.assertIn("recommendation", leaderboard["rankings"][0])
         self.assertEqual(summary["category_rank"], 1)
         self.assertEqual(failures[0]["failure_type"], "ignored_tool_output")
 
@@ -702,8 +739,15 @@ class CritiqorTests(unittest.TestCase):
                 "agent_id": "agent_a",
                 "agent_name": "Agent A",
                 "category": "research",
+                "benchmark_id": "research_v1",
+                "benchmark_spec": benchmark_spec("research_v1", "research"),
                 "trust_score": 90,
-                "scores": {"hallucination": 95, "reasoning": 90},
+                "scores": {
+                    "hallucination": 95,
+                    "reasoning": 90,
+                    "tool_reliability": 90,
+                    "confidence_calibration": 90,
+                },
                 "failure_causes": [],
             }
         )
@@ -712,8 +756,15 @@ class CritiqorTests(unittest.TestCase):
                 "agent_id": "agent_a",
                 "agent_name": "Agent A",
                 "category": "research",
-                "trust_score": 82,
-                "scores": {"hallucination": 85, "reasoning": 88},
+                "benchmark_id": "research_v1",
+                "benchmark_spec": benchmark_spec("research_v1", "research"),
+                "trust_score": 72,
+                "scores": {
+                    "hallucination": 70,
+                    "reasoning": 72,
+                    "tool_reliability": 70,
+                    "confidence_calibration": 70,
+                },
                 "failure_causes": [
                     {
                         "type": "unsupported_claims",
@@ -729,8 +780,15 @@ class CritiqorTests(unittest.TestCase):
                 "agent_id": "agent_b",
                 "agent_name": "Agent B",
                 "category": "research",
+                "benchmark_id": "research_v1",
+                "benchmark_spec": benchmark_spec("research_v1", "research"),
                 "trust_score": 76,
-                "scores": {"hallucination": 78, "reasoning": 80},
+                "scores": {
+                    "hallucination": 78,
+                    "reasoning": 80,
+                    "tool_reliability": 76,
+                    "confidence_calibration": 76,
+                },
                 "failure_causes": [],
             }
         )
@@ -755,7 +813,10 @@ class CritiqorTests(unittest.TestCase):
                 "agent_id": "agent_shared",
                 "agent_name": "Public Agent",
                 "category": "coding_agents",
+                "benchmark_id": "coding_v1",
+                "benchmark_spec": benchmark_spec("coding_v1", "coding_agents"),
                 "trust_score": 92,
+                "visibility": "public",
                 "public_benchmark": True,
                 "tenant_public_benchmark_enabled": True,
                 "anonymized_aggregation": True,
@@ -770,7 +831,10 @@ class CritiqorTests(unittest.TestCase):
                 "agent_id": "agent_shared",
                 "agent_name": "Private Agent",
                 "category": "coding_agents",
+                "benchmark_id": "coding_v1",
+                "benchmark_spec": benchmark_spec("coding_v1", "coding_agents"),
                 "trust_score": 70,
+                "visibility": "private",
                 "public_benchmark": False,
                 "scores": {"reasoning": 70},
                 "failure_causes": [],
@@ -808,6 +872,12 @@ class CritiqorTests(unittest.TestCase):
                         "tool_use": 0.25,
                         "hallucination": 0.5,
                     },
+                    difficulty_factors={
+                        "task_complexity": 80,
+                        "tool_usage_requirements": 60,
+                        "multi_step_reasoning": 70,
+                        "retrieval_dependency": 90,
+                    },
                 ).to_dict(),
                 "scores": {
                     "reasoning": 80,
@@ -816,6 +886,7 @@ class CritiqorTests(unittest.TestCase):
                 },
                 "failure_causes": [],
                 "public_benchmark": True,
+                "visibility": "public",
             }
         )
 
@@ -844,6 +915,8 @@ class CritiqorTests(unittest.TestCase):
                     "tenant_id": "tenant_a",
                     "agent_id": "agent_stream",
                     "category": "general",
+                    "benchmark_id": "general_v1",
+                    "benchmark_spec": benchmark_spec("general_v1", "general"),
                     "local_run_id": "stream-1",
                     "trust_score": 64,
                     "scores": {"hallucination": 60},
@@ -868,6 +941,254 @@ class CritiqorTests(unittest.TestCase):
         self.assertIn("CausalGraphGenerated", observed_events)
         self.assertIn("LeaderboardUpdated", observed_events)
         self.assertGreaterEqual(len(lines), 3)
+
+    def test_v2_ingestion_rejects_malformed_or_unversioned_runs(self) -> None:
+        index = AgentReliabilityIndex()
+
+        with self.assertRaisesRegex(ValueError, "agent_id is required"):
+            index.ingest_run(
+                {
+                    "benchmark_id": "general_v1",
+                    "benchmark_spec": benchmark_spec("general_v1", "general"),
+                    "trust_score": 80,
+                }
+            )
+
+        with self.assertRaisesRegex(ValueError, "benchmark_id is required"):
+            index.ingest_run(
+                {
+                    "agent_id": "agent_missing_benchmark",
+                    "trust_score": 80,
+                }
+            )
+
+        with self.assertRaisesRegex(ValueError, "benchmark_spec is required"):
+            index.ingest_run(
+                {
+                    "agent_id": "agent_unversioned",
+                    "benchmark_id": "unknown_v1",
+                    "trust_score": 80,
+                }
+            )
+
+    def test_v2_run_hash_deduplicates_without_relying_on_self_reported_run_id(self) -> None:
+        index = AgentReliabilityIndex()
+        payload = {
+            "tenant_id": "tenant_a",
+            "agent_id": "agent_hash",
+            "category": "general",
+            "benchmark_id": "general_v1",
+            "benchmark_spec": benchmark_spec("general_v1", "general"),
+            "trust_score": 88,
+            "scores": {"reasoning": 88},
+            "failure_causes": [],
+            "visibility": "private",
+        }
+
+        first = index.ingest_run({**payload, "run_id": "local-a"})
+        duplicate = index.ingest_run({**payload, "run_id": "local-b"})
+
+        self.assertEqual(duplicate.status, "duplicate")
+        self.assertEqual(first.run_id, duplicate.run_id)
+        self.assertEqual(len(index.store.runs), 1)
+
+    def test_v2_event_log_replay_restores_rankings_in_order(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = f"{temp_dir}/events.jsonl"
+            index = AgentReliabilityIndex(event_log_path=path)
+            index.ingest_run(
+                {
+                    "tenant_id": "tenant_a",
+                    "agent_id": "agent_replay_a",
+                    "category": "coding_agents",
+                    "benchmark_id": "coding_v1",
+                    "benchmark_spec": benchmark_spec("coding_v1", "coding_agents"),
+                    "trust_score": 91,
+                    "scores": {"reasoning": 91},
+                    "failure_causes": [],
+                    "visibility": "public",
+                }
+            )
+            index.ingest_run(
+                {
+                    "tenant_id": "tenant_a",
+                    "agent_id": "agent_replay_b",
+                    "category": "coding_agents",
+                    "benchmark_id": "coding_v1",
+                    "trust_score": 72,
+                    "scores": {"reasoning": 72},
+                    "failure_causes": [],
+                    "visibility": "public",
+                }
+            )
+
+            sequence_ids = [event.sequence_id for event in index.event_stream.events]
+            replayed = AgentReliabilityIndex.from_event_log(path)
+
+        leaderboard = replayed.api.get_leaderboard(
+            "coding_agents",
+            tenant_id="tenant_a",
+        )
+
+        self.assertEqual(sequence_ids, sorted(sequence_ids))
+        self.assertEqual(leaderboard["rankings"][0]["agent_id"], "agent_replay_a")
+        self.assertEqual(len(replayed.store.runs), 2)
+
+    def test_v2_leaderboard_uses_weighted_formula_and_deterministic_tiebreaks(self) -> None:
+        index = AgentReliabilityIndex()
+        common = {
+            "tenant_id": "tenant_a",
+            "category": "coding_agents",
+            "benchmark_id": "coding_v1",
+            "benchmark_spec": benchmark_spec("coding_v1", "coding_agents"),
+            "trust_score": 85,
+            "scores": {"reasoning": 85, "tool_reliability": 85},
+            "failure_causes": [],
+            "evaluation_confidence": 90,
+            "evidence_level": "trace_available",
+            "visibility": "public",
+        }
+        index.ingest_run({**common, "agent_id": "agent_z", "timestamp": "2026-01-01T00:00:00+00:00"})
+        index.ingest_run({**common, "agent_id": "agent_a", "timestamp": "2026-01-01T00:00:00+00:00"})
+
+        leaderboard = index.api.get_leaderboard(
+            "coding_agents",
+            tenant_id="tenant_a",
+        )
+        first = leaderboard["rankings"][0]
+
+        self.assertEqual(first["agent_id"], "agent_a")
+        self.assertEqual(first["leaderboard_score"], first["score_breakdown"]["leaderboard_score"])
+        self.assertEqual(set(first["score_breakdown"]), {
+            "reliability",
+            "evaluation_confidence",
+            "benchmark_normalization",
+            "consistency",
+            "failure_rate",
+            "trend_score",
+            "leaderboard_score",
+        })
+
+    def test_dashboard_trust_privacy_page_explains_evidence_and_controls(self) -> None:
+        index = AgentReliabilityIndex()
+        html = _render_route(index, "events.jsonl", "/trust")
+
+        self.assertIn("Trust &amp; Privacy", html)
+        self.assertIn("OpenClaw Agent", html)
+        self.assertIn("Structured Event Log", html)
+        self.assertIn("Local First", html)
+        self.assertIn("No Hidden Telemetry", html)
+        self.assertIn("Does Critiqor read my code?", html)
+
+    def test_dashboard_progressive_disclosure_keeps_raw_trace_out_of_overview(self) -> None:
+        index = AgentReliabilityIndex()
+        accepted = index.ingest_run(build_openclaw_run_payload(
+            agent_id="openclaw_ui",
+            tenant_id="tenant_ui",
+            events=[
+                {"event": "tool_call", "tool": "search", "args": {"q": "alpha"}},
+                {"event": "tool_output", "tool": "search", "output": "alpha", "used": False},
+            ],
+        ))
+
+        overview = _render_route(index, "events.jsonl", "/")
+        evidence = _render_route(index, "events.jsonl", "/evidence")
+        onboarding = _render_route(index, "events.jsonl", "/onboarding")
+
+        self.assertIn("Recommended next action", overview)
+        self.assertIn("Agent Reliability Trend", overview)
+        self.assertNotIn("Raw execution trace", overview)
+        self.assertIn("Raw execution trace", evidence)
+        self.assertIn("critiqor monitor openclaw", onboarding)
+        self.assertIn(accepted.run_id, evidence)
+
+    def test_openclaw_diagnosis_detects_runtime_failure_taxonomy(self) -> None:
+        events = [
+            {"event": "tool_call", "tool": "search", "args": {"q": "alpha"}},
+            {"event": "tool_output", "tool": "search", "output": "alpha evidence", "used": False},
+            {"event": "tool_call", "tool": "search", "args": {"q": "alpha"}},
+            {"event": "retry_event", "tool": "search"},
+            {"event": "tool_call", "tool": "search", "args": {"q": "alpha"}},
+            {"event": "memory_event", "action": "recall_failed", "key": "plan"},
+            {"event": "context_event", "saturation": 91},
+            {"event": "token_usage", "usage": {"total": 16000}},
+            {"event": "skill_event", "skill": "retrieve", "status": "ignored"},
+        ]
+
+        diagnosis = diagnose_openclaw_events(events).to_dict()
+        cause_types = {cause["type"] for cause in diagnosis["failure_causes"]}
+
+        self.assertIn("infinite_tool_loop", cause_types)
+        self.assertIn("ignoring_tool_outputs", cause_types)
+        self.assertIn("memory_degradation", cause_types)
+        self.assertIn("context_pollution", cause_types)
+        self.assertIn("cost_explosion", cause_types)
+        self.assertIn("skill_failure", cause_types)
+        self.assertEqual(diagnosis["readiness_level"], "review_recommended")
+        self.assertTrue(diagnosis["causal_graph"]["edges"])
+
+    def test_openclaw_ingestion_generates_backend_run_diagnosis_view(self) -> None:
+        index = AgentReliabilityIndex()
+        payload = build_openclaw_run_payload(
+            agent_id="openclaw_a",
+            tenant_id="tenant_a",
+            visibility="anonymous",
+            events=[
+                {"event": "tool_call", "tool": "browser", "args": {"url": "x"}},
+                {"event": "tool_output", "tool": "browser", "output": "result", "used": False},
+            ],
+        )
+
+        accepted = index.ingest_run(payload)
+        view = index.dashboard.run_diagnosis_view(accepted.run_id)
+        update = index.dashboard.set_run_visibility(accepted.run_id, "public")
+
+        self.assertEqual(view["framework"], "openclaw")
+        self.assertEqual(view["executive_summary"]["evidence_level"], "fully_instrumented")
+        self.assertEqual(view["primary_diagnosis"]["root_cause_failure_type"], "ignoring_tool_outputs")
+        self.assertEqual(len(view["evidence_panel"]["tool_outputs"]), 1)
+        self.assertEqual(update["visibility"], "public")
+        self.assertTrue(index.store.runs[accepted.run_id].public_benchmark)
+
+    def test_openclaw_process_monitor_parses_jsonl_runtime_events(self) -> None:
+        payload = monitor_openclaw_process(
+            [
+                "python3",
+                "-c",
+                "import json; print(json.dumps({'event':'tool_call','tool':'search','args':{'q':'a'}})); print(json.dumps({'event':'tool_output','tool':'search','output':'a','used':False}))",
+            ],
+            agent_id="openclaw_cli",
+        )
+
+        self.assertEqual(payload["framework"], "openclaw")
+        self.assertEqual(payload["evidence_summary"]["tool_calls"], 1)
+        self.assertEqual(payload["primary_diagnosis"]["root_cause_failure_type"], "ignoring_tool_outputs")
+
+    def test_cli_monitor_openclaw_writes_event_log_and_dashboard_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            events = f"{temp_dir}/events.jsonl"
+            evaluation = f"{temp_dir}/latest.json"
+            exit_code = cli_main([
+                "monitor",
+                "openclaw",
+                "--events",
+                events,
+                "--evaluation",
+                evaluation,
+                "--agent-id",
+                "openclaw_cli",
+                "--",
+                "python3",
+                "-c",
+                "import json; print(json.dumps({'event':'tool_call','tool':'search','args':{'q':'a'}})); print(json.dumps({'event':'tool_output','tool':'search','output':'a','used':False}))",
+            ])
+
+            with open(evaluation, encoding="utf-8") as handle:
+                payload = __import__("json").load(handle)
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(payload["framework"], "openclaw")
+        self.assertTrue(payload["evidence_panel"]["causal_graph"]["nodes"])
 
 
 if __name__ == "__main__":

@@ -59,6 +59,18 @@ from .core import (
     save_evaluation,
     submit_run,
 )
+from .openclaw import (
+    OPENCLAW_EVENT_TYPES,
+    OPENCLAW_FAILURE_TAXONOMY,
+    OpenClawDiagnosis,
+    OpenClawFailureCause,
+    OpenClawRuntimeObserver,
+    build_openclaw_causal_graph,
+    build_openclaw_run_payload,
+    default_openclaw_benchmark_spec,
+    diagnose_openclaw_events,
+    monitor_openclaw_process,
+)
 from .platform import (
     AgentRecord,
     AgentReliabilityIndex,
@@ -71,12 +83,14 @@ from .platform import (
     FailureRecord,
     IngestionAPI,
     IngestionResult,
+    LeaderboardScoreBreakdown,
     LeaderboardService,
     PlatformEvent,
     PublicAPILayer,
     ReliabilityIndexStore,
     RunRecord,
     TenantRecord,
+    ValidationReport,
 )
 
 __all__ = [
@@ -137,6 +151,16 @@ __all__ = [
     "save_benchmark_contribution",
     "save_evaluation",
     "submit_run",
+    "OPENCLAW_EVENT_TYPES",
+    "OPENCLAW_FAILURE_TAXONOMY",
+    "OpenClawDiagnosis",
+    "OpenClawFailureCause",
+    "OpenClawRuntimeObserver",
+    "build_openclaw_causal_graph",
+    "build_openclaw_run_payload",
+    "default_openclaw_benchmark_spec",
+    "diagnose_openclaw_events",
+    "monitor_openclaw_process",
     "AgentRecord",
     "AgentReliabilityIndex",
     "AnalyticsEngine",
@@ -148,10 +172,12 @@ __all__ = [
     "FailureRecord",
     "IngestionAPI",
     "IngestionResult",
+    "LeaderboardScoreBreakdown",
     "LeaderboardService",
     "PlatformEvent",
     "PublicAPILayer",
     "ReliabilityIndexStore",
     "RunRecord",
     "TenantRecord",
+    "ValidationReport",
 ]

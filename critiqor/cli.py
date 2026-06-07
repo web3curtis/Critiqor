@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from .core import check_policy, load_evaluations
+from .openclaw import monitor_openclaw_process
+from .platform import AgentReliabilityIndex
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -37,11 +39,82 @@ def main(argv: list[str] | None = None) -> int:
         help="Maximum allowed hallucination risk.",
     )
 
+    monitor_parser = subparsers.add_parser("monitor", help="Monitor an agent framework runtime.")
+    monitor_subparsers = monitor_parser.add_subparsers(dest="framework")
+    openclaw_parser = monitor_subparsers.add_parser("openclaw", help="Observe an OpenClaw agent process.")
+    _add_monitor_args(openclaw_parser)
+
+    run_parser = subparsers.add_parser("run", help="Run and observe an agent command.")
+    _add_monitor_args(run_parser)
+
+    dashboard_parser = subparsers.add_parser("dashboard", help="Serve a local Critiqor dashboard.")
+    dashboard_parser.add_argument("--events", default=".critiqor/events.jsonl", help="Path to Critiqor event log JSONL.")
+    dashboard_parser.add_argument("--host", default="127.0.0.1", help="Dashboard host.")
+    dashboard_parser.add_argument("--port", type=int, default=8765, help="Dashboard port.")
+
     args = parser.parse_args(argv)
     if args.command == "check":
         return _check(args)
+    if args.command == "monitor" and args.framework == "openclaw":
+        return _monitor_openclaw(args)
+    if args.command == "run":
+        return _monitor_openclaw(args)
+    if args.command == "dashboard":
+        from .dashboard import serve_dashboard
+
+        serve_dashboard(args.events, host=args.host, port=args.port)
+        return 0
 
     parser.print_help()
+    return 0
+
+
+def _add_monitor_args(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("agent_command", nargs=argparse.REMAINDER, help="Command to launch after --.")
+    parser.add_argument("--agent-id", default="openclaw_agent", help="Agent identifier.")
+    parser.add_argument("--tenant-id", default="default", help="Tenant identifier.")
+    parser.add_argument("--visibility", default="private", choices=["private", "public", "anonymous", "shared"], help="Dashboard-controlled visibility state to apply at ingestion.")
+    parser.add_argument("--events", default=".critiqor/events.jsonl", help="Append-only event log path.")
+    parser.add_argument("--evaluation", default=".critiqor/latest_run.json", help="Latest run diagnosis JSON path.")
+    parser.add_argument("--benchmark-id", default="openclaw_runtime_v1", help="Versioned benchmark id.")
+    parser.add_argument("--difficulty-tier", default="standard", choices=["easy", "standard", "hard", "stress"], help="Benchmark difficulty tier.")
+    parser.add_argument("--cwd", default=None, help="Working directory for the agent command.")
+    parser.add_argument("--timeout", type=float, default=None, help="Optional process timeout in seconds.")
+
+
+def _monitor_openclaw(args: argparse.Namespace) -> int:
+    command = list(args.agent_command or [])
+    if command and command[0] == "--":
+        command = command[1:]
+    if not command:
+        print("Critiqor OpenClaw monitor requires an agent command after --.")
+        return 2
+
+    payload = monitor_openclaw_process(
+        command,
+        agent_id=args.agent_id,
+        tenant_id=args.tenant_id,
+        visibility=args.visibility,
+        benchmark_id=args.benchmark_id,
+        difficulty_tier=args.difficulty_tier,
+        cwd=args.cwd,
+        timeout=args.timeout,
+    )
+    index = AgentReliabilityIndex(event_log_path=args.events)
+    accepted = index.ingest_run(payload)
+    diagnosis = index.dashboard.run_diagnosis_view(accepted.run_id)
+    output_path = Path(args.evaluation)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(json.dumps(diagnosis, indent=2, sort_keys=True), encoding="utf-8")
+
+    print("Critiqor observed OpenClaw execution")
+    print(f"run_id: {accepted.run_id}")
+    print(f"trust_score: {diagnosis['executive_summary']['trust_score']}")
+    print(f"readiness_level: {diagnosis['executive_summary']['readiness_level']}")
+    print(f"primary_diagnosis: {diagnosis['primary_diagnosis'].get('root_cause_failure_type')}")
+    print(f"event_log: {args.events}")
+    print(f"dashboard_json: {output_path}")
+    print("dashboard: run `critiqor dashboard --events " + args.events + "`")
     return 0
 
 
