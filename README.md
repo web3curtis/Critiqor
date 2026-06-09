@@ -1,4 +1,4 @@
-# Critiqor - Eval For OpenClaw
+# 🦞 Critiqor - Eval For OpenClaw
 
 ![Critiqor for OpenClaw Runtime Reliability Intelligence](assets/CritiqorOpenClawBanner.png)
 
