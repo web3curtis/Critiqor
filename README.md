@@ -2,7 +2,7 @@
 
 ![Critiqor for OpenClaw Runtime Reliability Intelligence](assets/CritiqorOpenClawBanner.png)
 
-**EVALUATE! EVALUATE!**
+                        **EVALUATE! EVALUATE!**
 
 ![Python](https://img.shields.io/badge/python-3.9%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
