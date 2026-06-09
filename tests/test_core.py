@@ -1190,6 +1190,32 @@ class CritiqorTests(unittest.TestCase):
         self.assertEqual(payload["framework"], "openclaw")
         self.assertTrue(payload["evidence_panel"]["causal_graph"]["nodes"])
 
+    def test_session_finalize_persists_completed_run_artifact(self) -> None:
+        from critiqor.session import create_session, finalize_session, load_active_session
+
+        with tempfile.TemporaryDirectory() as tmp:
+            session = create_session(runs_dir=tmp, agent_id="openclaw_test")
+            self.assertEqual(session["status"], "MONITORING")
+            self.assertIsNotNone(load_active_session(tmp))
+
+            completed = finalize_session(tmp)
+            self.assertIsNotNone(completed)
+            assert completed is not None
+            self.assertEqual(completed["status"], "COMPLETED")
+            self.assertEqual(completed["run_id"], "run_001")
+            self.assertIsNone(load_active_session(tmp))
+            self.assertIn("diagnosis", completed)
+            self.assertIn("event_log", completed)
+            self.assertIn("trust_score", completed)
+            self.assertIn("confidence_score", completed)
+            self.assertIn("causal_graph", completed)
+            self.assertIn("failure_analysis", completed)
+            self.assertIn("cost_analysis", completed)
+
+    def test_finalize_without_active_session_is_user_safe(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertEqual(cli_main(["finalize", "--runs-dir", tmp, "--no-dashboard"]), 0)
+
 
 if __name__ == "__main__":
     unittest.main()

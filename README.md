@@ -142,36 +142,66 @@ Yes. Anonymous benchmark participation is supported.
 
 ## Quick Start
 
-### Install
-
-From the cloned repo root, run an editable install so local code changes are used immediately:
+### Step 1 — Install Critiqor
 
 ```bash
-python -m pip install -e .
+pip install critiqor
 ```
 
-After release, install from PyPI instead:
+### Step 2 — Start Monitoring OpenClaw
 
 ```bash
-pip install critiqor-ai
+critiqor monitor openclaw
 ```
 
-### Minimal Example
+Expected terminal output:
 
-```python
-from critiqor import Critiqor
-
-agent = Critiqor(TheirExistingAgent(model="llama3.2"))  # wrap your existing agent
-result = agent.run("Explain vector databases in one paragraph.")
-
-print(result.answer)       # original agent response
-print(result.confidence)   # 0-100 evidence-weighted reliability score
-print(result.evaluation_confidence)
-print(result.failure_causes)
-print(result.deployment_recommendation)
-print(result.trust_level)  # "High", "Moderate", or "Low"
-print(result.critique)     # structured reliability critique
+```text
+✓ OpenClaw detected
+✓ Runtime observer attached
+✓ Event collection active
+Write 'critiqor finalize' to stop monitoring and generate a diagnosis report.
 ```
+
+### Step 3 — Use OpenClaw Normally
+
+OpenClaw should continue operating exactly as it normally would. Critiqor runs as an observer only and captures:
+
+* tool calls
+* tool outputs
+* retries
+* memory events
+* context events
+* token usage
+* runtime failures
+
+### Step 4 — Finalize Observation Session
+
+When finished, run this in another terminal from the same workspace:
+
+```bash
+critiqor finalize
+```
+
+Expected terminal output:
+
+```text
+Stopping observer...
+Finalizing evidence...
+Generating diagnosis...
+Launching dashboard...
+```
+
+### Step 5 — Review Results
+
+The dashboard automatically opens and displays:
+
+* Executive Summary
+* Primary Diagnosis
+* Causal Analysis
+* Cost Analysis
+* Trust Assessment
+* Evidence
 
 ### Trace Evaluation
 
@@ -439,17 +469,20 @@ reliability intelligence.
 CLI-first OpenClaw monitoring:
 
 ```bash
-critiqor monitor openclaw --agent-id my_openclaw_agent -- python my_agent.py
-critiqor run --agent-id my_openclaw_agent -- python my_agent.py
+critiqor monitor openclaw
 ```
 
-The monitor launches the process, captures runtime events, streams them into the
-append-only ingestion layer, writes a structured diagnosis JSON file, and points
-the user to the local dashboard command:
+The monitor creates a persistent run artifact, attaches the runtime observer,
+and keeps event collection active until the user explicitly finalizes the session:
 
 ```bash
-critiqor dashboard --events .critiqor/events.jsonl
+critiqor finalize
 ```
+
+Finalization stops observation, closes the event stream, generates diagnosis
+artifacts, persists the completed run under `runs/`, and launches the dashboard.
+The dashboard reads persisted backend artifacts only; it does not compute trust
+scores, diagnoses, causal graphs, failure analysis, or cost analysis.
 
 OpenClaw evidence is collected from runtime events only:
 

@@ -6,9 +6,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import html
 import json
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from .platform import AgentReliabilityIndex
+from .session import list_completed_runs
 
 
 NAV_ITEMS = [
@@ -26,8 +27,13 @@ NAV_ITEMS = [
 ]
 
 
-def serve_dashboard(event_log_path: str = ".critiqor/events.jsonl", host: str = "127.0.0.1", port: int = 8765) -> None:
-    """Serve a local dashboard backed only by structured Critiqor outputs."""
+def serve_dashboard(
+    event_log_path: str = ".critiqor/events.jsonl",
+    runs_dir: str = "runs",
+    host: str = "127.0.0.1",
+    port: int = 8765,
+) -> None:
+    """Serve a local dashboard backed only by finalized run artifacts."""
 
     index = _load_index(event_log_path)
 
@@ -35,13 +41,18 @@ def serve_dashboard(event_log_path: str = ".critiqor/events.jsonl", host: str = 
         def do_GET(self) -> None:
             parsed = urlparse(self.path)
             if parsed.path == "/api/runs":
-                self._json(_runs(index))
+                self._json(_runs(index, runs_dir))
                 return
             if parsed.path.startswith("/api/runs/"):
                 run_id = parsed.path.rsplit("/", 1)[-1]
-                self._json(index.dashboard.run_diagnosis_view(run_id))
+                self._json(_run_by_id(index, runs_dir, run_id))
                 return
-            self._html(_render_route(index, event_log_path, parsed.path))
+            self._html(_render_route(index, event_log_path, parsed.path, runs_dir, parsed.query))
+
+        def do_OPTIONS(self) -> None:
+            self.send_response(204)
+            self._cors_headers()
+            self.end_headers()
 
         def do_POST(self) -> None:
             parsed = urlparse(self.path)
@@ -58,10 +69,16 @@ def serve_dashboard(event_log_path: str = ".critiqor/events.jsonl", host: str = 
         def log_message(self, format: str, *args: object) -> None:
             return
 
+        def _cors_headers(self) -> None:
+            self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+
         def _json(self, payload: object) -> None:
             body = json.dumps(payload, indent=2, sort_keys=True).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
+            self._cors_headers()
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -70,6 +87,7 @@ def serve_dashboard(event_log_path: str = ".critiqor/events.jsonl", host: str = 
             encoded = body.encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            self._cors_headers()
             self.send_header("Content-Length", str(len(encoded)))
             self.end_headers()
             self.wfile.write(encoded)
@@ -86,13 +104,25 @@ def _load_index(event_log_path: str) -> AgentReliabilityIndex:
     return AgentReliabilityIndex(event_log_path=str(path))
 
 
-def _runs(index: AgentReliabilityIndex) -> list[dict[str, object]]:
+def _runs(index: AgentReliabilityIndex, runs_dir: str = "runs") -> list[dict[str, object]]:
+    artifacts = list_completed_runs(runs_dir)
+    if artifacts:
+        return [dict(run.get("diagnosis") or {}) for run in artifacts if isinstance(run.get("diagnosis"), dict)]
     return [index.dashboard.run_diagnosis_view(run_id) for run_id in sorted(index.store.runs)]
 
 
-def _render_route(index: AgentReliabilityIndex, event_log_path: str, path: str) -> str:
-    runs = _runs(index)
-    run = runs[-1] if runs else None
+def _run_by_id(index: AgentReliabilityIndex, runs_dir: str, run_id: str) -> dict[str, object]:
+    for artifact in list_completed_runs(runs_dir):
+        if artifact.get("run_id") == run_id and isinstance(artifact.get("diagnosis"), dict):
+            return dict(artifact["diagnosis"])
+    return index.dashboard.run_diagnosis_view(run_id)
+
+
+def _render_route(index: AgentReliabilityIndex, event_log_path: str, path: str, runs_dir: str = "runs", query: str = "") -> str:
+    runs = _runs(index, runs_dir)
+    selected_run_id = parse_qs(query).get("run_id", [None])[0]
+    run = next((item for item in runs if str(item.get("run_id")) == selected_run_id), None) if selected_run_id else None
+    run = run or (runs[-1] if runs else None)
     routes = {
         "/": ("Overview", "Executive reliability summary", _render_overview),
         "/runs": ("Recent OpenClaw Runs", "Run history without raw trace overload", _render_runs),
@@ -108,7 +138,7 @@ def _render_route(index: AgentReliabilityIndex, event_log_path: str, path: str) 
     }
     title, subtitle, renderer = routes.get(path, routes["/"])
     content = renderer(run, runs, index, event_log_path)
-    return _page(title, subtitle, event_log_path, content, path)
+    return _page(title, subtitle, f"{event_log_path} · {runs_dir}", content, path)
 
 
 def _page(title: str, subtitle: str, event_log_path: str, content: str, active_path: str) -> str:
@@ -475,7 +505,11 @@ def _edge_step(edge: object, idx: int) -> str:
 def _run_card(run: dict[str, object]) -> str:
     summary = _summary(run)
     diagnosis = _diagnosis(run)
-    return f"<div class=\"info-row\"><span>{html.escape(str(run.get('agent_id')))} · {html.escape(_nice_failure(diagnosis.get('root_cause_failure_type')))}</span><b>{summary.get('trust_score')} / 100</b></div>"
+    run_id = html.escape(str(run.get("run_id", "")))
+    label = html.escape(str(run.get("agent_id")))
+    failure = html.escape(_nice_failure(diagnosis.get("root_cause_failure_type")))
+    score = html.escape(str(summary.get("trust_score")))
+    return f"<a class=\"info-row\" href=\"/?run_id={run_id}\"><span>{label} · {failure}</span><b>{score} / 100</b></a>"
 
 
 def _visibility_option(current: str, value: str) -> str:
