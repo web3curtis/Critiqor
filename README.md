@@ -7,12 +7,16 @@
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Status](https://img.shields.io/badge/status-alpha-orange)
 
-Critiqor evaluates observable agent behavior instead of relying only on agent
-self-reporting. It can score a final response, analyze supplied execution
-traces, collect evidence through lightweight SDK instrumentation, explain why a
-run failed, recommend fixes, compare releases, rank agents across categories,
-debug causal failure chains, run benchmarks, certify reliability, gate
-deployments, and track reliability over time.
+Critiqor is a runtime reliability intelligence layer designed specifically for
+OpenClaw frameworks and agents. It observes OpenClaw execution, captures runtime
+evidence, diagnoses failure causes, builds causal failure chains, benchmarks
+agent reliability, and helps teams decide whether an agent is ready to deploy.
+
+**Significant vNext workflow change:** Critiqor is now the OpenClaw runtime
+entrypoint. Running `critiqor monitor openclaw` creates the observation session,
+initializes event collection, and launches `openclaw --bindings` in the same
+terminal. Users no longer need to manually start OpenClaw in a second terminal
+or rely on fragile external process discovery.
 
 The core rule: captured execution data is stronger evidence than post-hoc
 explanations.
@@ -160,12 +164,14 @@ Expected terminal output:
 ✓ OpenClaw detected
 ✓ Runtime observer attached
 ✓ Event collection active
-Write 'critiqor finalize' to stop monitoring and generate a diagnosis report.
+Launching OpenClaw...
 ```
+
+Critiqor creates the run session and initializes the observer before launching `openclaw --bindings`, so runtime evidence is captured from the beginning of the OpenClaw session.
 
 ### Step 3 — Use OpenClaw Normally
 
-OpenClaw should continue operating exactly as it normally would. Critiqor runs as an observer only and captures:
+The OpenClaw TUI opens in the same terminal. OpenClaw should continue operating exactly as it normally would while Critiqor observes runtime behavior and captures:
 
 * tool calls
 * tool outputs
@@ -177,7 +183,7 @@ OpenClaw should continue operating exactly as it normally would. Critiqor runs a
 
 ### Step 4 — Finalize Observation Session
 
-When finished, run this in another terminal from the same workspace:
+When finished, exit the OpenClaw TUI and run:
 
 ```bash
 critiqor finalize
@@ -473,7 +479,9 @@ critiqor monitor openclaw
 ```
 
 The monitor creates a persistent run artifact, attaches the runtime observer,
-and keeps event collection active until the user explicitly finalizes the session:
+and launches `openclaw --bindings` as a Critiqor-owned child process. Event
+collection starts before OpenClaw launches and remains active until the user
+explicitly finalizes the session:
 
 ```bash
 critiqor finalize

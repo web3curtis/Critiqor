@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import sys
 import tempfile
 import unittest
 
@@ -1215,6 +1217,42 @@ class CritiqorTests(unittest.TestCase):
     def test_finalize_without_active_session_is_user_safe(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(cli_main(["finalize", "--runs-dir", tmp, "--no-dashboard"]), 0)
+
+    def test_monitor_openclaw_launches_child_after_session_creation(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            command = f"{sys.executable} -c 'import os; assert os.environ.get(\"CRITIQOR_RUN_ID\")'"
+            monitor_code = cli_main(
+                [
+                    "monitor",
+                    "openclaw",
+                    "--runs-dir",
+                    temp_dir,
+                    "--openclaw-command",
+                    command,
+                ]
+            )
+            finalize_code = cli_main(["finalize", "--runs-dir", temp_dir, "--no-dashboard"])
+            run_path = f"{temp_dir}/run_001.json"
+            with open(run_path, encoding="utf-8") as handle:
+                run = json.load(handle)
+
+        events = run["event_log"]
+        event_names = [event["event"] for event in events]
+        process_start_index = event_names.index("process_start")
+        launch_ready_index = next(
+            index
+            for index, event in enumerate(events)
+            if event["event"] == "state_transition"
+            and event.get("message") == "Observer ready before OpenClaw launch"
+        )
+
+        self.assertEqual(monitor_code, 0)
+        self.assertEqual(finalize_code, 0)
+        self.assertEqual(run["status"], "COMPLETED")
+        self.assertLess(launch_ready_index, process_start_index)
+        self.assertIn("process_end", event_names)
+        self.assertIsNotNone(run["diagnosis"])
+
 
 
 if __name__ == "__main__":

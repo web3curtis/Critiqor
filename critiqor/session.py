@@ -132,16 +132,43 @@ def append_event(session: dict[str, Any], event_type: str, payload: dict[str, An
     return event
 
 
-def append_event_to_active(runs_dir: str | Path, event_type: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
-    active = load_active_session(runs_dir)
-    if not active:
-        raise RuntimeError("No active Critiqor monitoring session found.")
+def append_event_to_run(
+    runs_dir: str | Path,
+    run_id: str,
+    event_type: str,
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     paths = paths_for(runs_dir)
-    run_id = str(active["run_id"])
     session = read_json(paths.run_path(run_id))
     event = append_event(session, event_type, payload)
     write_json(paths.run_path(run_id), session)
     return event
+
+
+def append_event_to_active(runs_dir: str | Path, event_type: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
+    active = load_active_session(runs_dir)
+    if not active:
+        raise RuntimeError("No active Critiqor monitoring session found.")
+    return append_event_to_run(runs_dir, str(active["run_id"]), event_type, payload)
+
+
+def abort_session(runs_dir: str | Path, reason: str) -> dict[str, Any] | None:
+    paths = paths_for(runs_dir)
+    active = load_active_session(runs_dir)
+    if not active:
+        return None
+    run_id = str(active["run_id"])
+    session = read_json(paths.run_path(run_id))
+    now = utc_now()
+    session["status"] = ABORTED
+    session["timestamps"] = {**dict(session.get("timestamps") or {}), "finalized_at": now}
+    session.setdefault("lifecycle", []).append({"state": ABORTED, "timestamp": now})
+    append_event(session, "error_event", {"message": reason, "source": "critiqor_monitor"})
+    append_event(session, "state_transition", {"state": ABORTED, "message": reason})
+    write_json(paths.run_path(run_id), session)
+    if paths.active_path.exists():
+        paths.active_path.unlink()
+    return session
 
 
 def monitor_until_finalized(session: dict[str, Any], runs_dir: str | Path = "runs", heartbeat_seconds: float = 2.0) -> None:

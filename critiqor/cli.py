@@ -6,6 +6,8 @@ import argparse
 import json
 import os
 from pathlib import Path
+import shlex
+import shutil
 import subprocess
 import sys
 from typing import Any
@@ -18,10 +20,11 @@ from .core import check_policy, load_evaluations
 from .openclaw import monitor_openclaw_process
 from .platform import AgentReliabilityIndex
 from .session import (
+    abort_session,
+    append_event_to_run,
     create_session,
     finalize_session,
     load_active_session,
-    monitor_until_finalized,
 )
 
 
@@ -106,6 +109,11 @@ def _add_monitor_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--dashboard-url", default=None, help="Dashboard URL to print/open after ingestion. Defaults to CRITIQOR_DASHBOARD_URL.")
     parser.add_argument("--ingest-url", default=None, help="Dashboard API ingest URL. Defaults to <dashboard-url>/api/runs/ingest or CRITIQOR_INGEST_URL.")
     parser.add_argument("--open-dashboard", action="store_true", help="Open the dashboard URL for this run after monitoring completes.")
+    parser.add_argument(
+        "--openclaw-command",
+        default="openclaw --bindings",
+        help="OpenClaw launch command. Defaults to: openclaw --bindings",
+    )
 
 
 def _monitor_openclaw(args: argparse.Namespace) -> int:
@@ -122,6 +130,15 @@ def _monitor_openclaw(args: argparse.Namespace) -> int:
         print("critiqor finalize")
         return 1
 
+    launch_command = _parse_openclaw_command(args.openclaw_command)
+    if not launch_command:
+        print("OpenClaw launch command is empty.")
+        return 2
+    if shutil.which(launch_command[0]) is None:
+        print(f"OpenClaw command not found: {launch_command[0]}")
+        print("Install OpenClaw or pass --openclaw-command with the correct executable path.")
+        return 127
+
     try:
         session = create_session(
             runs_dir=args.runs_dir,
@@ -135,17 +152,110 @@ def _monitor_openclaw(args: argparse.Namespace) -> int:
         print(str(exc))
         return 1
 
+    run_id = str(session["run_id"])
     print("✓ OpenClaw detected")
     print("✓ Runtime observer attached")
     print("✓ Event collection active")
-    print("Write 'critiqor finalize' to stop monitoring and generate a diagnosis report.")
+    print("Launching OpenClaw...")
+
+    env = _openclaw_environment(args, run_id)
+    append_event_to_run(
+        args.runs_dir,
+        run_id,
+        "state_transition",
+        {"state": "MONITORING", "message": "Observer ready before OpenClaw launch"},
+    )
+    append_event_to_run(
+        args.runs_dir,
+        run_id,
+        "state_transition",
+        {"state": "MONITORING", "message": "Launching OpenClaw child process"},
+    )
+
+    process: subprocess.Popen[Any] | None = None
     try:
-        monitor_until_finalized(session, args.runs_dir)
+        process = subprocess.Popen(launch_command, cwd=args.cwd, env=env)
+        append_event_to_run(
+            args.runs_dir,
+            run_id,
+            "process_start",
+            {"command": launch_command, "pid": process.pid, "framework": "openclaw"},
+        )
+        exit_code = process.wait(timeout=args.timeout) if args.timeout else process.wait()
+        append_event_to_run(
+            args.runs_dir,
+            run_id,
+            "process_end",
+            {"command": launch_command, "pid": process.pid, "exit_code": exit_code, "framework": "openclaw"},
+        )
+        if exit_code != 0:
+            append_event_to_run(
+                args.runs_dir,
+                run_id,
+                "error_event",
+                {"source": "openclaw_process", "message": f"OpenClaw exited with status {exit_code}"},
+            )
+        print("OpenClaw session ended.")
+        print("Run `critiqor finalize` to stop monitoring and generate a diagnosis report.")
+        return int(exit_code) if exit_code else 0
+    except subprocess.TimeoutExpired:
+        if process is not None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait()
+            append_event_to_run(
+                args.runs_dir,
+                run_id,
+                "error_event",
+                {"source": "openclaw_process", "message": "OpenClaw monitor timed out", "timeout_seconds": args.timeout},
+            )
+            append_event_to_run(
+                args.runs_dir,
+                run_id,
+                "process_end",
+                {"command": launch_command, "pid": process.pid, "exit_code": -1, "framework": "openclaw"},
+            )
+        print("OpenClaw monitor timed out.")
+        print("Run `critiqor finalize` to generate a diagnosis report from collected evidence.")
+        return 124
     except KeyboardInterrupt:
+        if process is not None and process.poll() is None:
+            process.terminate()
+            append_event_to_run(
+                args.runs_dir,
+                run_id,
+                "error_event",
+                {"source": "critiqor_monitor", "message": "Monitoring process terminated intentionally"},
+            )
         print("Monitoring process terminated intentionally.")
         print("Run `critiqor finalize` to generate a diagnosis report from collected evidence.")
         return 130
-    return 0
+    except OSError as exc:
+        abort_session(args.runs_dir, f"Failed to launch OpenClaw: {exc}")
+        print(f"Failed to launch OpenClaw: {exc}")
+        return 1
+
+
+def _parse_openclaw_command(raw_command: str) -> list[str]:
+    return shlex.split(raw_command)
+
+
+def _openclaw_environment(args: argparse.Namespace, run_id: str) -> dict[str, str]:
+    env = os.environ.copy()
+    env.update(
+        {
+            "CRITIQOR_RUN_ID": run_id,
+            "CRITIQOR_RUNS_DIR": str(Path(args.runs_dir).resolve()),
+            "CRITIQOR_AGENT_ID": str(args.agent_id),
+            "CRITIQOR_TENANT_ID": str(args.tenant_id),
+            "CRITIQOR_VISIBILITY": str(args.visibility),
+            "CRITIQOR_EVENT_SOURCE": "openclaw",
+        }
+    )
+    return env
 
 
 def _run_openclaw_command(args: argparse.Namespace) -> int:
