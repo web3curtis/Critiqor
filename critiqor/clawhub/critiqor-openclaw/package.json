@@ -1,0 +1,31 @@
+{
+  "name": "critiqor-openclaw",
+  "version": "0.1.0",
+  "description": "Critiqor runtime evidence collector for OpenClaw agents.",
+  "type": "module",
+  "main": "index.js",
+  "keywords": [
+    "openclaw",
+    "critiqor",
+    "observability",
+    "runtime-evidence"
+  ],
+  "openclaw": {
+    "name": "Critiqor Evidence Collector",
+    "description": "Collects OpenClaw runtime events into Critiqor session evidence files.",
+    "extensions": [
+      "./index.js"
+    ],
+    "compat": {
+      "pluginApi": ">=2026.6.1"
+    },
+    "build": {
+      "openclawVersion": "2026.6.1"
+    }
+  },
+  "files": [
+    "index.js",
+    "openclaw.plugin.json",
+    "package.json"
+  ]
+}

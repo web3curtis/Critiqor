@@ -4,7 +4,7 @@
 
 **EVALUATE! EVALUATE!**
 
-![Python](https://img.shields.io/badge/python-3.9%2B-blue)
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Status](https://img.shields.io/badge/status-alpha-orange)
 
@@ -15,14 +15,60 @@ agent reliability, and helps teams decide whether an agent is ready to deploy.
 
 **Significant vNext workflow change:** Critiqor is now the OpenClaw runtime
 entrypoint. Running `critiqor monitor openclaw` creates the observation session,
-initializes event collection, and launches `openclaw --bindings` in the same
+initializes event collection, and launches the local OpenClaw TUI with `openclaw chat` in the same
 terminal. Users no longer need to manually start OpenClaw in a second terminal
 or rely on fragile external process discovery.
 
 The core rule: captured execution data is stronger evidence than post-hoc
 explanations.
 
+## CLI + Runtime Architecture
 
+Critiqor separates command routing from runtime supervision:
+
+| Layer | Responsibility | Does Not Do |
+| --- | --- | --- |
+| CLI Layer (Click) | Parse commands, render help, validate options, route to backend functions | Launch OpenClaw, observe runtime behavior, generate diagnoses |
+| Supervised Runtime | Create run sessions, launch `openclaw chat`, own the child process, persist evidence, finalize diagnoses | Render CLI help menus or parse user arguments |
+
+`critiqor monitor openclaw` initializes observation first, then launches the
+OpenClaw TUI in the same terminal. `critiqor finalize` closes the active
+session, generates the run artifact, and opens the dashboard.
+
+
+## Critiqor OpenClaw Plugin
+
+Critiqor ships a lightweight OpenClaw plugin at `clawhub/critiqor-openclaw`.
+The plugin is intentionally narrow: it does **not** score runs, generate
+diagnoses, render dashboards, or evaluate trust. It only observes OpenClaw
+runtime activity, normalizes events, and writes immutable raw evidence.
+
+Collection layers:
+
+| Layer | Source | Captures |
+| --- | --- | --- |
+| Extension API | OpenClaw `api.on(...)` events | agent/turn/session timeline, provider requests and responses, messages, input, user bash |
+| Tool hooks | OpenClaw tool lifecycle events backed by `AgentSession.installAgentToolHooks()` | tool calls, tool results, tool execution updates, memory search, memory get, errors, duration |
+
+Raw evidence is written to:
+
+```text
+runs/<run_id>/session.jsonl
+runs/<run_id>/session.json
+```
+
+`session.jsonl` is the append-only runtime timeline. `session.json` is a small
+summary with counts and file references. During `critiqor finalize`, Critiqor
+loads the most recent session evidence and writes the derived artifact:
+
+```text
+runs/<run_id>/diagnosis.json
+```
+
+This split keeps the original evidence auditable while allowing diagnosis logic
+to improve over time without rerunning the OpenClaw session. The dashboard should
+render `diagnosis.json` first and only drill into `session.jsonl` when users open
+the evidence view.
 
 ## Dashboard Experience
 
@@ -168,7 +214,7 @@ Expected terminal output:
 Launching OpenClaw...
 ```
 
-Critiqor creates the run session and initializes the observer before launching `openclaw --bindings`, so runtime evidence is captured from the beginning of the OpenClaw session.
+Critiqor creates the run session, enables the Critiqor OpenClaw evidence plugin, and initializes the observer before launching `openclaw chat`, so runtime evidence is captured from the beginning of the OpenClaw session.
 
 ### Step 3 — Use OpenClaw Normally
 
@@ -480,7 +526,7 @@ critiqor monitor openclaw
 ```
 
 The monitor creates a persistent run artifact, attaches the runtime observer,
-and launches `openclaw --bindings` as a Critiqor-owned child process. Event
+and launches `openclaw chat` as a Critiqor-owned child process. Event
 collection starts before OpenClaw launches and remains active until the user
 explicitly finalizes the session:
 

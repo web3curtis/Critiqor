@@ -36,6 +36,18 @@ class SessionPaths:
     def run_path(self, run_id: str) -> Path:
         return self.runs_dir / f"{run_id}.json"
 
+    def evidence_dir(self, run_id: str) -> Path:
+        return self.runs_dir / run_id
+
+    def evidence_jsonl_path(self, run_id: str) -> Path:
+        return self.evidence_dir(run_id) / "session.jsonl"
+
+    def evidence_summary_path(self, run_id: str) -> Path:
+        return self.evidence_dir(run_id) / "session.json"
+
+    def diagnosis_path(self, run_id: str) -> Path:
+        return self.evidence_dir(run_id) / "diagnosis.json"
+
 
 def paths_for(runs_dir: str | Path = "runs") -> SessionPaths:
     return SessionPaths(Path(runs_dir))
@@ -132,6 +144,82 @@ def append_event(session: dict[str, Any], event_type: str, payload: dict[str, An
     return event
 
 
+def normalize_plugin_event(event: dict[str, Any]) -> dict[str, Any]:
+    raw_event_type = str(event.get("event_type") or event.get("event") or "runtime_event")
+    payload = event.get("payload")
+    event_type = {
+        "tool_result": "tool_output",
+        "tool_execution_end": "tool_output",
+        "memory_search": "memory_event",
+        "memory_get": "memory_event",
+        "after_provider_response": "token_usage",
+    }.get(raw_event_type, raw_event_type)
+    normalized = {
+        "event": event_type,
+        "event_type": event_type,
+        "timestamp": event.get("timestamp") or utc_now(),
+        "source_layer": event.get("source_layer") or "extension_api",
+        "payload": {"openclaw_event_type": raw_event_type, **payload} if isinstance(payload, dict) else {"openclaw_event_type": raw_event_type, "value": payload},
+    }
+    for key in ("tool_name", "tool_call_id", "status", "duration_ms", "error"):
+        if key in event:
+            normalized[key] = event[key]
+    return normalized
+
+
+def load_session_evidence_events(runs_dir: str | Path, run_id: str) -> list[dict[str, Any]]:
+    paths = paths_for(runs_dir)
+    evidence_path = paths.evidence_jsonl_path(run_id)
+    events: list[dict[str, Any]] = []
+    if not evidence_path.exists():
+        return events
+    for line_number, line in enumerate(evidence_path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            payload = json.loads(line)
+        except json.JSONDecodeError:
+            events.append({
+                "event": "evidence_parse_error",
+                "event_type": "evidence_parse_error",
+                "timestamp": utc_now(),
+                "source_layer": "critiqor_finalize",
+                "payload": {"line_number": line_number},
+            })
+            continue
+        if isinstance(payload, dict):
+            events.append(normalize_plugin_event(payload))
+    return events
+
+
+def write_session_evidence_summary(runs_dir: str | Path, run_id: str, events: list[dict[str, Any]]) -> None:
+    paths = paths_for(runs_dir)
+    by_event_type: dict[str, int] = {}
+    by_source_layer: dict[str, int] = {}
+    for event in events:
+        event_type = str(event.get("event_type") or event.get("event") or "runtime_event")
+        source_layer = str(event.get("source_layer") or "unknown")
+        by_event_type[event_type] = by_event_type.get(event_type, 0) + 1
+        by_source_layer[source_layer] = by_source_layer.get(source_layer, 0) + 1
+    summary = {
+        "session_id": run_id,
+        "run_id": run_id,
+        "schema_version": "critiqor.session.v1",
+        "events_file": "session.jsonl",
+        "events": [],
+        "metrics": {
+            "total_events": len(events),
+            "by_event_type": by_event_type,
+            "by_source_layer": by_source_layer,
+        },
+    }
+    write_json(paths.evidence_summary_path(run_id), summary)
+
+
+def write_diagnosis_artifact(runs_dir: str | Path, run_id: str, diagnosis: dict[str, Any]) -> None:
+    write_json(paths_for(runs_dir).diagnosis_path(run_id), diagnosis)
+
+
 def append_event_to_run(
     runs_dir: str | Path,
     run_id: str,
@@ -222,9 +310,12 @@ def finalize_session(runs_dir: str | Path = "runs") -> dict[str, Any] | None:
         return None
     run_id = str(session["run_id"])
     metadata = dict(session.get("metadata") or {})
-    events = [dict(event) for event in session.get("event_log", [])]
+    stored_events = [dict(event) for event in session.get("event_log", [])]
+    plugin_events = load_session_evidence_events(runs_dir, run_id)
     append_event(session, "state_transition", {"state": COMPLETED, "message": "Evidence finalized"})
-    events = [dict(event) for event in session.get("event_log", [])]
+    lifecycle_events = [dict(event) for event in session.get("event_log", [])]
+    events = [*stored_events, *plugin_events, *[event for event in lifecycle_events if event not in stored_events]]
+    write_session_evidence_summary(runs_dir, run_id, events)
     diagnosis = diagnose_openclaw_events(events)
     payload = build_openclaw_run_payload(
         agent_id=str(metadata.get("agent_id", "openclaw_agent")),
@@ -239,6 +330,8 @@ def finalize_session(runs_dir: str | Path = "runs") -> dict[str, Any] | None:
     accepted = index.ingest_run(payload)
     dashboard_view = index.dashboard.run_diagnosis_view(accepted.run_id)
     dashboard_view["run_id"] = run_id
+    dashboard_view["raw_evidence"] = {"session_jsonl": str(paths.evidence_jsonl_path(run_id)), "session_json": str(paths.evidence_summary_path(run_id))}
+    write_diagnosis_artifact(runs_dir, run_id, dashboard_view)
     finalized_at = utc_now()
     session.update(
         {

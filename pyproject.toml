@@ -3,28 +3,31 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "critiqor-ai"
-version = "0.1.0"
+name = "critiqor"
+version = "0.1.1"
 description = "Runtime reliability intelligence for OpenClaw agents."
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 authors = [{ name = "Critiqor Contributors" }]
-license = { text = "MIT" }
+license = "MIT"
 keywords = ["ai", "agents", "openclaw", "observability", "reliability", "diagnosis"]
+dependencies = ["click>=8.1"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
 [tool.setuptools.packages.find]
 include = ["critiqor*"]
+
+[tool.setuptools.package-data]
+critiqor = ["clawhub/critiqor-openclaw/*.js", "clawhub/critiqor-openclaw/*.json"]
 
 [project.scripts]
 critiqor = "critiqor.cli:main"

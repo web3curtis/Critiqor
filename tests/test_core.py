@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
+from pathlib import Path
 import sys
 import tempfile
 import unittest
@@ -1218,6 +1221,20 @@ class CritiqorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(cli_main(["finalize", "--runs-dir", tmp, "--no-dashboard"]), 0)
 
+    def test_cli_help_lists_available_critiqor_commands(self) -> None:
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            exit_code = cli_main(["help"])
+
+        help_text = output.getvalue()
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Critiqor CLI", help_text)
+        self.assertIn("critiqor monitor openclaw", help_text)
+        self.assertIn("critiqor finalize", help_text)
+        self.assertIn("critiqor dashboard", help_text)
+        self.assertIn("critiqor help", help_text)
+
     def test_monitor_openclaw_launches_child_after_session_creation(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             command = f"{sys.executable} -c 'import os; assert os.environ.get(\"CRITIQOR_RUN_ID\")'"
@@ -1253,6 +1270,84 @@ class CritiqorTests(unittest.TestCase):
         self.assertIn("process_end", event_names)
         self.assertIsNotNone(run["diagnosis"])
 
+
+
+    def test_openclaw_plugin_files_are_packaged(self) -> None:
+        from critiqor.runtime import critiqor_openclaw_plugin_dir
+
+        plugin_dir = critiqor_openclaw_plugin_dir()
+
+        self.assertTrue((plugin_dir / "index.js").exists())
+        self.assertTrue((plugin_dir / "openclaw.plugin.json").exists())
+        manifest = json.loads((plugin_dir / "openclaw.plugin.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest["id"], "critiqor")
+        self.assertTrue(manifest["activation"]["onStartup"])
+
+    def test_finalize_prefers_plugin_session_jsonl_evidence(self) -> None:
+        from critiqor.session import create_session, finalize_session
+
+        with tempfile.TemporaryDirectory() as tmp:
+            session = create_session(runs_dir=tmp, agent_id="openclaw_test")
+            run_id = session["run_id"]
+            evidence_dir = Path(tmp) / run_id
+            evidence_dir.mkdir(parents=True, exist_ok=True)
+            evidence_path = evidence_dir / "session.jsonl"
+            evidence_path.write_text(
+                "\n".join(
+                    [
+                        json.dumps(
+                            {
+                                "timestamp": "2026-06-20T00:00:00Z",
+                                "event_type": "tool_call",
+                                "source_layer": "tool_hooks",
+                                "tool_name": "memory_search",
+                                "tool_call_id": "call_1",
+                                "payload": {"toolName": "memory_search", "input": {"query": "prior decision"}},
+                            }
+                        ),
+                        json.dumps(
+                            {
+                                "timestamp": "2026-06-20T00:00:01Z",
+                                "event_type": "tool_result",
+                                "source_layer": "tool_hooks",
+                                "tool_name": "memory_search",
+                                "tool_call_id": "call_1",
+                                "status": "ok",
+                                "duration_ms": 22,
+                                "payload": {"toolName": "memory_search", "content": [{"type": "text", "text": "Found prior decision"}]},
+                            }
+                        ),
+                        json.dumps(
+                            {
+                                "timestamp": "2026-06-20T00:00:01Z",
+                                "event_type": "memory_search",
+                                "source_layer": "tool_hooks",
+                                "tool_name": "memory_search",
+                                "tool_call_id": "call_1",
+                                "payload": {"toolName": "memory_search", "observed_as": "tool_output"},
+                            }
+                        ),
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            completed = finalize_session(tmp)
+            assert completed is not None
+            diagnosis_path = evidence_dir / "diagnosis.json"
+            summary_path = evidence_dir / "session.json"
+
+            self.assertEqual(completed["status"], "COMPLETED")
+            self.assertTrue(diagnosis_path.exists())
+            self.assertTrue(summary_path.exists())
+            event_names = [event["event"] for event in completed["event_log"]]
+            self.assertIn("tool_call", event_names)
+            self.assertIn("tool_output", event_names)
+            self.assertIn("memory_event", event_names)
+            diagnosis = json.loads(diagnosis_path.read_text(encoding="utf-8"))
+            self.assertEqual(diagnosis["run_id"], run_id)
+            self.assertIn("raw_evidence", diagnosis)
 
 
 if __name__ == "__main__":

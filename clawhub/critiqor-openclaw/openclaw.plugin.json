@@ -1,0 +1,16 @@
+{
+  "id": "critiqor",
+  "name": "Critiqor Evidence Collector",
+  "version": "0.1.0",
+  "description": "Passive runtime evidence collection for OpenClaw agents.",
+  "entry": "./index.js",
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false
+  },
+  "homepage": "https://github.com/web3curtis/critiqor-core-engine",
+  "keywords": ["critiqor", "openclaw", "runtime-evidence", "observability"]
+}
