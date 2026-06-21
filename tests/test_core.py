@@ -9,6 +9,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from critiqor import (
     AgentReliabilityIndex,
@@ -1220,6 +1221,55 @@ class CritiqorTests(unittest.TestCase):
     def test_finalize_without_active_session_is_user_safe(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(cli_main(["finalize", "--runs-dir", tmp, "--no-dashboard"]), 0)
+
+    def test_finalize_syncs_diagnosis_to_hosted_dashboard(self) -> None:
+        from critiqor.session import create_session
+
+        posted: dict[str, object] = {}
+        opened: list[str] = []
+
+        def fake_sync(url: str, diagnosis: dict[str, object]) -> None:
+            posted["url"] = url
+            posted["diagnosis"] = diagnosis
+
+        with tempfile.TemporaryDirectory() as tmp:
+            create_session(runs_dir=tmp, agent_id="openclaw_test")
+            with patch("critiqor.runtime.sync_dashboard_diagnosis", fake_sync), patch("critiqor.runtime.webbrowser.open", opened.append):
+                exit_code = cli_main(["finalize", "--runs-dir", tmp])
+
+            diagnosis_path = Path(tmp) / "run_001" / "diagnosis.json"
+            diagnosis_exists = diagnosis_path.exists()
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(posted["url"], "https://critiqor-core-engine.vercel.app/api/runs/ingest")
+        self.assertEqual(opened, ["https://critiqor-core-engine.vercel.app/?run_id=run_001"])
+        self.assertTrue(diagnosis_exists)
+        diagnosis = posted["diagnosis"]
+        self.assertIsInstance(diagnosis, dict)
+        self.assertEqual(diagnosis["run_id"], "run_001")
+
+    def test_finalize_uses_local_dashboard_when_hosted_sync_fails(self) -> None:
+        from critiqor.session import create_session
+
+        served: dict[str, object] = {}
+        opened: list[str] = []
+
+        def fail_sync(url: str, diagnosis: dict[str, object]) -> None:
+            raise OSError("not readable by dashboard")
+
+        def fake_serve(events: str, runs_dir: str, host: str, port: int) -> None:
+            served.update({"events": events, "runs_dir": runs_dir, "host": host, "port": port})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            create_session(runs_dir=tmp, agent_id="openclaw_test")
+            with patch("critiqor.runtime.sync_dashboard_diagnosis", fail_sync), patch("critiqor.runtime.webbrowser.open", opened.append), patch("critiqor.dashboard.serve_dashboard", fake_serve):
+                exit_code = cli_main(["finalize", "--runs-dir", tmp])
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(opened, [])
+        self.assertEqual(served["runs_dir"], tmp)
+        self.assertEqual(served["host"], "127.0.0.1")
+        self.assertEqual(served["port"], 8765)
 
     def test_cli_help_lists_available_critiqor_commands(self) -> None:
         output = io.StringIO()
