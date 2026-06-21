@@ -33,7 +33,10 @@ Critiqor separates command routing from runtime supervision:
 
 `critiqor monitor openclaw` initializes observation first, then launches the
 OpenClaw TUI in the same terminal. `critiqor finalize` closes the active
-session, generates the run artifact, and opens the dashboard.
+session, finalizes `session.jsonl`, generates `diagnosis.json`, syncs that
+diagnosis to the hosted dashboard, verifies the hosted dashboard can read the
+same `run_id`, and only then opens the hosted dashboard. Critiqor does not
+automatically fall back to a local dashboard.
 
 
 ## Critiqor OpenClaw Plugin
@@ -242,7 +245,19 @@ Expected terminal output:
 Stopping observer...
 Finalizing evidence...
 Generating diagnosis...
+Diagnosis saved: runs/run_001/diagnosis.json
+Syncing hosted dashboard...
 Launching dashboard...
+```
+
+If hosted dashboard sync or verification fails, Critiqor does not open a stale
+dashboard and does not start a local dashboard. It leaves the diagnosis on disk
+and prints a retry command:
+
+```text
+Dashboard sync failed: <short reason>
+Your diagnosis report is still available at: runs/run_001/diagnosis.json
+Try again later with: critiqor dashboard sync --run-id run_001
 ```
 
 ### Step 5 — Review Results
@@ -535,9 +550,14 @@ critiqor finalize
 ```
 
 Finalization stops observation, closes the event stream, generates diagnosis
-artifacts, persists the completed run under `runs/`, and launches the dashboard.
-The dashboard reads persisted backend artifacts only; it does not compute trust
-scores, diagnoses, causal graphs, failure analysis, or cost analysis.
+artifacts, persists the completed run under `runs/`, uploads the generated
+`diagnosis.json` to the hosted dashboard API, verifies the same `run_id` is
+readable, and opens `https://critiqor-core-engine.vercel.app/?run_id=<run_id>`.
+If the hosted dashboard cannot be verified, Critiqor leaves the report at
+`runs/<run_id>/diagnosis.json` and exits with a clear warning instead of opening
+a stale template or starting a local dashboard. The dashboard reads persisted
+backend artifacts only; it does not compute trust scores, diagnoses, causal
+graphs, failure analysis, or cost analysis.
 
 OpenClaw evidence is collected from runtime events only:
 

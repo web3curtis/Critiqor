@@ -1248,28 +1248,48 @@ class CritiqorTests(unittest.TestCase):
         self.assertIsInstance(diagnosis, dict)
         self.assertEqual(diagnosis["run_id"], "run_001")
 
-    def test_finalize_uses_local_dashboard_when_hosted_sync_fails(self) -> None:
+    def test_finalize_warns_without_opening_dashboard_when_hosted_sync_fails(self) -> None:
         from critiqor.session import create_session
 
-        served: dict[str, object] = {}
         opened: list[str] = []
+        output = io.StringIO()
 
         def fail_sync(url: str, diagnosis: dict[str, object]) -> None:
             raise OSError("not readable by dashboard")
 
-        def fake_serve(events: str, runs_dir: str, host: str, port: int) -> None:
-            served.update({"events": events, "runs_dir": runs_dir, "host": host, "port": port})
+        with tempfile.TemporaryDirectory() as tmp:
+            create_session(runs_dir=tmp, agent_id="openclaw_test")
+            with patch("critiqor.runtime.sync_dashboard_diagnosis", fail_sync), patch("critiqor.runtime.webbrowser.open", opened.append), contextlib.redirect_stdout(output):
+                exit_code = cli_main(["finalize", "--runs-dir", tmp])
+            diagnosis_path = Path(tmp) / "run_001" / "diagnosis.json"
+
+        text = output.getvalue()
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(opened, [])
+        self.assertIn(f"Diagnosis saved: {diagnosis_path}", text)
+        self.assertIn("Syncing hosted dashboard...", text)
+        self.assertIn("Dashboard sync failed: not readable by dashboard", text)
+        self.assertIn(f"Your diagnosis report is still available at: {diagnosis_path}", text)
+        self.assertIn("Try again later with: critiqor dashboard sync --run-id run_001", text)
+
+    def test_dashboard_sync_uploads_existing_diagnosis(self) -> None:
+        from critiqor.session import create_session, finalize_session
+
+        synced: dict[str, object] = {}
+
+        def fake_sync(url: str, diagnosis: dict[str, object]) -> None:
+            synced["url"] = url
+            synced["run_id"] = diagnosis.get("run_id")
 
         with tempfile.TemporaryDirectory() as tmp:
             create_session(runs_dir=tmp, agent_id="openclaw_test")
-            with patch("critiqor.runtime.sync_dashboard_diagnosis", fail_sync), patch("critiqor.runtime.webbrowser.open", opened.append), patch("critiqor.dashboard.serve_dashboard", fake_serve):
-                exit_code = cli_main(["finalize", "--runs-dir", tmp])
+            finalize_session(tmp)
+            with patch("critiqor.runtime.sync_dashboard_diagnosis", fake_sync):
+                exit_code = cli_main(["dashboard", "sync", "--runs-dir", tmp, "--run-id", "run_001"])
 
         self.assertEqual(exit_code, 0)
-        self.assertEqual(opened, [])
-        self.assertEqual(served["runs_dir"], tmp)
-        self.assertEqual(served["host"], "127.0.0.1")
-        self.assertEqual(served["port"], 8765)
+        self.assertEqual(synced["url"], "https://critiqor-core-engine.vercel.app/api/runs/ingest")
+        self.assertEqual(synced["run_id"], "run_001")
 
     def test_cli_help_lists_available_critiqor_commands(self) -> None:
         output = io.StringIO()

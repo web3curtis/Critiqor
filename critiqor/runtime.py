@@ -27,6 +27,8 @@ from .session import (
     create_session,
     finalize_session,
     load_active_session,
+    paths_for,
+    read_json,
 )
 
 
@@ -52,8 +54,6 @@ class MonitorOpenClawOptions:
 @dataclass(frozen=True)
 class FinalizeOptions:
     runs_dir: str = "runs"
-    host: str = "127.0.0.1"
-    port: int = 8765
     no_dashboard: bool = False
     dashboard_url: str | None = None
     ingest_url: str | None = None
@@ -65,6 +65,14 @@ class DashboardOptions:
     runs: str = "runs"
     host: str = "127.0.0.1"
     port: int = 8765
+
+
+@dataclass(frozen=True)
+class DashboardSyncOptions:
+    run_id: str
+    runs_dir: str = "runs"
+    dashboard_url: str | None = None
+    ingest_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -230,20 +238,29 @@ def finalize_observation(options: FinalizeOptions) -> int:
         return 0
     diagnosis = session.get("diagnosis") if isinstance(session.get("diagnosis"), dict) else None
     run_id = str(session["run_id"])
-    hosted_dashboard_ready = False
-    if diagnosis and not options.no_dashboard:
-        ingest_url = ingest_url_for(options.ingest_url, options.dashboard_url)
-        if ingest_url:
-            try:
-                sync_dashboard_diagnosis(ingest_url, diagnosis)
-                hosted_dashboard_ready = True
-                print(f"dashboard_sync: accepted and verified by {ingest_url}")
-            except OSError as exc:
-                print(f"dashboard_sync: failed ({exc})")
-                print("dashboard_sync: opening local diagnosis artifact dashboard instead")
+    diagnosis_path = diagnosis_artifact_path(options.runs_dir, run_id)
+    print(f"Diagnosis saved: {diagnosis_path}")
+    if options.no_dashboard:
+        return 0
+    if not diagnosis:
+        print("Dashboard sync failed: diagnosis artifact was not generated")
+        print(f"Your diagnosis report is still available at: {diagnosis_path}")
+        print(f"Try again later with: critiqor dashboard sync --run-id {run_id}")
+        return 0
+
+    print("Syncing hosted dashboard...")
+    ingest_url = ingest_url_for(options.ingest_url, options.dashboard_url)
+    try:
+        sync_dashboard_diagnosis(ingest_url, diagnosis)
+    except OSError as exc:
+        print(f"Dashboard sync failed: {short_error(exc)}")
+        print(f"Your diagnosis report is still available at: {diagnosis_path}")
+        print(f"Try again later with: critiqor dashboard sync --run-id {run_id}")
+        return 0
+
+    dashboard_url = dashboard_url_for(options.dashboard_url, run_id)
     print("Launching dashboard...")
-    if not options.no_dashboard:
-        launch_dashboard(options.runs_dir, options.host, options.port, run_id, options.dashboard_url, hosted_dashboard_ready)
+    webbrowser.open(dashboard_url)
     return 0
 
 
@@ -251,6 +268,24 @@ def serve_local_dashboard(options: DashboardOptions) -> int:
     from .dashboard import serve_dashboard
 
     serve_dashboard(options.events, runs_dir=options.runs, host=options.host, port=options.port)
+    return 0
+
+
+def sync_dashboard_run(options: DashboardSyncOptions) -> int:
+    diagnosis_path = diagnosis_artifact_path(options.runs_dir, options.run_id)
+    if not diagnosis_path.exists():
+        print(f"Diagnosis report not found: {diagnosis_path}")
+        return 1
+    diagnosis = read_json(diagnosis_path)
+    print(f"Diagnosis loaded: {diagnosis_path}")
+    print("Syncing hosted dashboard...")
+    try:
+        sync_dashboard_diagnosis(ingest_url_for(options.ingest_url, options.dashboard_url), diagnosis)
+    except OSError as exc:
+        print(f"Dashboard sync failed: {short_error(exc)}")
+        print(f"Your diagnosis report is still available at: {diagnosis_path}")
+        return 1
+    print(f"Dashboard sync verified: {dashboard_url_for(options.dashboard_url, options.run_id)}")
     return 0
 
 
@@ -365,11 +400,16 @@ def launch_dashboard(
     hosted_dashboard_ready: bool = False,
 ) -> None:
     if hosted_dashboard_ready:
-        webbrowser.open(dashboard_url_for(dashboard_url, run_id) or HOSTED_DASHBOARD_URL)
-        return
-    from .dashboard import serve_dashboard
+        webbrowser.open(dashboard_url_for(dashboard_url, run_id))
 
-    serve_dashboard(".critiqor/events.jsonl", runs_dir=runs_dir, host=host, port=port)
+
+def diagnosis_artifact_path(runs_dir: str | Path, run_id: str) -> Path:
+    return paths_for(runs_dir).diagnosis_path(run_id)
+
+
+def short_error(error: BaseException) -> str:
+    message = str(error).strip().replace("\n", " ")
+    return message[:180] if message else error.__class__.__name__
 
 
 def dashboard_url_for(raw_url: str | None, run_id: str) -> str | None:

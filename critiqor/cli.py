@@ -6,6 +6,7 @@ import click
 
 from .runtime import (
     DashboardOptions,
+    DashboardSyncOptions,
     FinalizeOptions,
     MonitorOpenClawOptions,
     PolicyCheckOptions,
@@ -13,6 +14,7 @@ from .runtime import (
     finalize_observation,
     monitor_openclaw,
     serve_local_dashboard,
+    sync_dashboard_run,
 )
 
 _COMMAND_HELP = """Critiqor CLI
@@ -26,7 +28,10 @@ critiqor finalize
 - Stop observation session and generate diagnosis
 
 critiqor dashboard
-- Open latest dashboard
+- Open latest local dashboard
+
+critiqor dashboard sync --run-id <run_id>
+- Retry hosted dashboard sync for a saved diagnosis
 
 critiqor help
 - Show available commands
@@ -126,26 +131,38 @@ def monitor_openclaw_command(
 
 @cli.command("finalize")
 @click.option("--runs-dir", default="runs", show_default=True, help="Directory containing Critiqor run artifacts.")
-@click.option("--host", default="127.0.0.1", show_default=True, help="Dashboard host to launch.")
-@click.option("--port", type=int, default=8765, show_default=True, help="Dashboard port to launch.")
-@click.option("--no-dashboard", is_flag=True, help="Finalize without launching the dashboard.")
-@click.option("--dashboard-url", default=None, help="Dashboard URL to open after finalization. Defaults to the hosted Critiqor dashboard.")
+@click.option("--no-dashboard", is_flag=True, help="Finalize without opening the hosted dashboard.")
+@click.option("--dashboard-url", default=None, help="Hosted dashboard URL. Defaults to the hosted Critiqor dashboard.")
 @click.option("--ingest-url", default=None, help="Dashboard API ingest URL. Defaults to <dashboard-url>/api/runs/ingest.")
-def finalize_command(runs_dir: str, host: str, port: int, no_dashboard: bool, dashboard_url: str | None, ingest_url: str | None) -> int:
-    """Stop observation and generate diagnosis artifacts."""
+def finalize_command(runs_dir: str, no_dashboard: bool, dashboard_url: str | None, ingest_url: str | None) -> int:
+    """Stop observation, generate diagnosis, sync hosted dashboard."""
 
-    return finalize_observation(FinalizeOptions(runs_dir=runs_dir, host=host, port=port, no_dashboard=no_dashboard, dashboard_url=dashboard_url, ingest_url=ingest_url))
+    return finalize_observation(FinalizeOptions(runs_dir=runs_dir, no_dashboard=no_dashboard, dashboard_url=dashboard_url, ingest_url=ingest_url))
 
 
-@cli.command("dashboard")
+@cli.group("dashboard", invoke_without_command=True)
 @click.option("--events", default=".critiqor/events.jsonl", show_default=True, help="Path to Critiqor event log JSONL.")
 @click.option("--runs", default="runs", show_default=True, help="Directory containing finalized Critiqor run artifacts.")
 @click.option("--host", default="127.0.0.1", show_default=True, help="Dashboard host.")
 @click.option("--port", type=int, default=8765, show_default=True, help="Dashboard port.")
-def dashboard_command(events: str, runs: str, host: str, port: int) -> int:
-    """Open latest dashboard."""
+@click.pass_context
+def dashboard_command(ctx: click.Context, events: str, runs: str, host: str, port: int) -> int | None:
+    """Open latest local dashboard or sync a hosted dashboard run."""
 
-    return serve_local_dashboard(DashboardOptions(events=events, runs=runs, host=host, port=port))
+    if ctx.invoked_subcommand is None:
+        return serve_local_dashboard(DashboardOptions(events=events, runs=runs, host=host, port=port))
+    return None
+
+
+@dashboard_command.command("sync")
+@click.option("--run-id", required=True, help="Run id whose diagnosis.json should be synced.")
+@click.option("--runs-dir", default="runs", show_default=True, help="Directory containing Critiqor run artifacts.")
+@click.option("--dashboard-url", default=None, help="Hosted dashboard URL. Defaults to the hosted Critiqor dashboard.")
+@click.option("--ingest-url", default=None, help="Dashboard API ingest URL. Defaults to <dashboard-url>/api/runs/ingest.")
+def dashboard_sync_command(run_id: str, runs_dir: str, dashboard_url: str | None, ingest_url: str | None) -> int:
+    """Retry hosted dashboard sync for a saved diagnosis."""
+
+    return sync_dashboard_run(DashboardSyncOptions(run_id=run_id, runs_dir=runs_dir, dashboard_url=dashboard_url, ingest_url=ingest_url))
 
 
 @cli.command("run", context_settings={"ignore_unknown_options": True, "allow_extra_args": True})
