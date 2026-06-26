@@ -39,9 +39,6 @@ class SessionPaths:
     def evidence_dir(self, run_id: str) -> Path:
         return self.runs_dir / run_id
 
-    def evidence_jsonl_path(self, run_id: str) -> Path:
-        return self.evidence_dir(run_id) / "session.jsonl"
-
     def evidence_summary_path(self, run_id: str) -> Path:
         return self.evidence_dir(run_id) / "session.json"
 
@@ -169,26 +166,24 @@ def normalize_plugin_event(event: dict[str, Any]) -> dict[str, Any]:
 
 def load_session_evidence_events(runs_dir: str | Path, run_id: str) -> list[dict[str, Any]]:
     paths = paths_for(runs_dir)
-    evidence_path = paths.evidence_jsonl_path(run_id)
+    session_path = paths.evidence_summary_path(run_id)
     events: list[dict[str, Any]] = []
-    if not evidence_path.exists():
-        return events
-    for line_number, line in enumerate(evidence_path.read_text(encoding="utf-8").splitlines(), start=1):
-        if not line.strip():
-            continue
+    if session_path.exists():
         try:
-            payload = json.loads(line)
+            session_payload = read_json(session_path)
         except json.JSONDecodeError:
             events.append({
                 "event": "evidence_parse_error",
                 "event_type": "evidence_parse_error",
                 "timestamp": utc_now(),
                 "source_layer": "critiqor_finalize",
-                "payload": {"line_number": line_number},
+                "payload": {"file": "session.json"},
             })
-            continue
-        if isinstance(payload, dict):
-            events.append(normalize_plugin_event(payload))
+        else:
+            raw_events = session_payload.get("events")
+            if isinstance(raw_events, list):
+                return [normalize_plugin_event(event) for event in raw_events if isinstance(event, dict)]
+
     return events
 
 
@@ -205,8 +200,8 @@ def write_session_evidence_summary(runs_dir: str | Path, run_id: str, events: li
         "session_id": run_id,
         "run_id": run_id,
         "schema_version": "critiqor.session.v1",
-        "events_file": "session.jsonl",
-        "events": [],
+        "events_file": "session.json",
+        "events": events,
         "metrics": {
             "total_events": len(events),
             "by_event_type": by_event_type,
@@ -330,7 +325,7 @@ def finalize_session(runs_dir: str | Path = "runs") -> dict[str, Any] | None:
     accepted = index.ingest_run(payload)
     dashboard_view = index.dashboard.run_diagnosis_view(accepted.run_id)
     dashboard_view["run_id"] = run_id
-    dashboard_view["raw_evidence"] = {"session_jsonl": str(paths.evidence_jsonl_path(run_id)), "session_json": str(paths.evidence_summary_path(run_id))}
+    dashboard_view["raw_evidence"] = {"session_json": str(paths.evidence_summary_path(run_id))}
     write_diagnosis_artifact(runs_dir, run_id, dashboard_view)
     finalized_at = utc_now()
     session.update(

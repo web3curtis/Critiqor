@@ -4,17 +4,32 @@ from __future__ import annotations
 
 import click
 
+
+class BriefHelpCommand(click.Command):
+    """Command help that shows the purpose without advanced option noise."""
+
+    def format_options(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        return
+
+
+class BriefHelpGroup(click.Group):
+    """Group help that shows subcommands without advanced option noise."""
+
+    def format_options(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        self.format_commands(ctx, formatter)
+
+
 from .runtime import (
     DashboardOptions,
-    DashboardSyncOptions,
     FinalizeOptions,
     MonitorOpenClawOptions,
     PolicyCheckOptions,
+    RunsOptions,
     check_deployment_policy,
     finalize_observation,
     monitor_openclaw,
+    list_runs,
     serve_local_dashboard,
-    sync_dashboard_run,
 )
 
 _COMMAND_HELP = """Critiqor CLI
@@ -25,20 +40,20 @@ critiqor monitor openclaw
 - Launch OpenClaw TUI via (openclaw chat) and begin runtime observation
 
 critiqor finalize
-- Stop observation session and generate diagnosis
+- Stop observation session, generate diagnosis, and open the local dashboard
 
-critiqor dashboard
-- Open latest local dashboard
+critiqor dashboard [run_id]
+- Open the latest or selected local diagnosis dashboard
 
-critiqor dashboard sync --run-id <run_id>
-- Retry hosted dashboard sync for a saved diagnosis
+critiqor runs
+- List completed evaluations with summaries
 
 critiqor help
 - Show available commands
 """
 
 
-@click.group(context_settings={"help_option_names": ["-h", "--help"]}, invoke_without_command=True)
+@click.group(context_settings={"help_option_names": ["-h", "--help"]}, invoke_without_command=True, cls=BriefHelpGroup)
 @click.pass_context
 def cli(ctx: click.Context) -> None:
     """Runtime reliability intelligence for OpenClaw agents."""
@@ -47,20 +62,21 @@ def cli(ctx: click.Context) -> None:
         click.echo(ctx.get_help())
 
 
-@cli.command("help")
+@cli.command("help", cls=BriefHelpCommand)
 def help_command() -> None:
     """Show available commands."""
 
     click.echo(_COMMAND_HELP.rstrip())
 
 
-@cli.group()
+@cli.group(cls=BriefHelpGroup)
 def monitor() -> None:
     """Monitor an agent framework runtime."""
 
 
 @monitor.command(
     "openclaw",
+    cls=BriefHelpCommand,
     context_settings={"ignore_unknown_options": True, "allow_extra_args": True, "help_option_names": ["-h", "--help"]},
 )
 @click.option("--agent-id", default="openclaw_agent", show_default=True, help="Agent identifier.")
@@ -72,7 +88,7 @@ def monitor() -> None:
     type=click.Choice(["private", "public", "anonymous", "shared"]),
     help="Dashboard-controlled visibility state to apply at ingestion.",
 )
-@click.option("--events", default=".critiqor/events.jsonl", show_default=True, help="Append-only event log path.")
+@click.option("--events", default=".critiqor/events.jsonl", show_default=True, help="Legacy event log path for custom command runs.")
 @click.option("--evaluation", default=".critiqor/latest_run.json", show_default=True, help="Latest run diagnosis JSON path.")
 @click.option("--benchmark-id", default="openclaw_runtime_v1", show_default=True, help="Versioned benchmark id.")
 @click.option(
@@ -85,9 +101,6 @@ def monitor() -> None:
 @click.option("--cwd", default=None, help="Working directory for the agent command.")
 @click.option("--timeout", type=float, default=None, help="Optional process timeout in seconds.")
 @click.option("--runs-dir", default="runs", show_default=True, help="Directory for Critiqor run artifacts.")
-@click.option("--dashboard-url", default=None, help="Dashboard URL to print/open after ingestion. Defaults to CRITIQOR_DASHBOARD_URL.")
-@click.option("--ingest-url", default=None, help="Dashboard API ingest URL. Defaults to <dashboard-url>/api/runs/ingest or CRITIQOR_INGEST_URL.")
-@click.option("--open-dashboard", is_flag=True, help="Open the dashboard URL for this run after monitoring completes.")
 @click.option("--openclaw-command", default="openclaw chat", show_default=True, help="OpenClaw launch command.")
 @click.argument("agent_command", nargs=-1, type=click.UNPROCESSED)
 def monitor_openclaw_command(
@@ -101,9 +114,6 @@ def monitor_openclaw_command(
     cwd: str | None,
     timeout: float | None,
     runs_dir: str,
-    dashboard_url: str | None,
-    ingest_url: str | None,
-    open_dashboard: bool,
     openclaw_command: str,
     agent_command: tuple[str, ...],
 ) -> int:
@@ -120,52 +130,44 @@ def monitor_openclaw_command(
         cwd=cwd,
         timeout=timeout,
         runs_dir=runs_dir,
-        dashboard_url=dashboard_url,
-        ingest_url=ingest_url,
-        open_dashboard=open_dashboard,
         openclaw_command=openclaw_command,
         agent_command=agent_command,
     )
     return monitor_openclaw(options)
 
 
-@cli.command("finalize")
+@cli.command("finalize", cls=BriefHelpCommand)
 @click.option("--runs-dir", default="runs", show_default=True, help="Directory containing Critiqor run artifacts.")
-@click.option("--no-dashboard", is_flag=True, help="Finalize without opening the hosted dashboard.")
-@click.option("--dashboard-url", default=None, help="Hosted dashboard URL. Defaults to the hosted Critiqor dashboard.")
-@click.option("--ingest-url", default=None, help="Dashboard API ingest URL. Defaults to <dashboard-url>/api/runs/ingest.")
-def finalize_command(runs_dir: str, no_dashboard: bool, dashboard_url: str | None, ingest_url: str | None) -> int:
-    """Stop observation, generate diagnosis, sync hosted dashboard."""
+@click.option("--no-dashboard", is_flag=True, help="Finalize without opening the local dashboard.")
+@click.option("--host", default="127.0.0.1", show_default=True, help="Local dashboard host.")
+@click.option("--port", type=int, default=0, show_default=True, help="Local dashboard port. Use 0 to choose an available port.")
+def finalize_command(runs_dir: str, no_dashboard: bool, host: str, port: int) -> int:
+    """Stop observation, generate diagnosis, and open local dashboard."""
 
-    return finalize_observation(FinalizeOptions(runs_dir=runs_dir, no_dashboard=no_dashboard, dashboard_url=dashboard_url, ingest_url=ingest_url))
+    return finalize_observation(FinalizeOptions(runs_dir=runs_dir, no_dashboard=no_dashboard, host=host, port=port))
 
 
-@cli.group("dashboard", invoke_without_command=True)
-@click.option("--events", default=".critiqor/events.jsonl", show_default=True, help="Path to Critiqor event log JSONL.")
+@cli.command("dashboard", cls=BriefHelpCommand)
+@click.argument("run_id", required=False)
+@click.option("--events", default=".critiqor/events.jsonl", show_default=True, help="Legacy Critiqor event log path.")
 @click.option("--runs", default="runs", show_default=True, help="Directory containing finalized Critiqor run artifacts.")
 @click.option("--host", default="127.0.0.1", show_default=True, help="Dashboard host.")
-@click.option("--port", type=int, default=8765, show_default=True, help="Dashboard port.")
-@click.pass_context
-def dashboard_command(ctx: click.Context, events: str, runs: str, host: str, port: int) -> int | None:
-    """Open latest local dashboard or sync a hosted dashboard run."""
+@click.option("--port", type=int, default=0, show_default=True, help="Dashboard port. Use 0 to choose an available port.")
+def dashboard_command(run_id: str | None, events: str, runs: str, host: str, port: int) -> int:
+    """Open the latest or selected local diagnosis dashboard."""
 
-    if ctx.invoked_subcommand is None:
-        return serve_local_dashboard(DashboardOptions(events=events, runs=runs, host=host, port=port))
-    return None
+    return serve_local_dashboard(DashboardOptions(events=events, runs=runs, host=host, port=port, run_id=run_id))
 
 
-@dashboard_command.command("sync")
-@click.option("--run-id", required=True, help="Run id whose diagnosis.json should be synced.")
+@cli.command("runs", cls=BriefHelpCommand)
 @click.option("--runs-dir", default="runs", show_default=True, help="Directory containing Critiqor run artifacts.")
-@click.option("--dashboard-url", default=None, help="Hosted dashboard URL. Defaults to the hosted Critiqor dashboard.")
-@click.option("--ingest-url", default=None, help="Dashboard API ingest URL. Defaults to <dashboard-url>/api/runs/ingest.")
-def dashboard_sync_command(run_id: str, runs_dir: str, dashboard_url: str | None, ingest_url: str | None) -> int:
-    """Retry hosted dashboard sync for a saved diagnosis."""
+def runs_command(runs_dir: str) -> int:
+    """List completed evaluations with diagnosis summaries."""
 
-    return sync_dashboard_run(DashboardSyncOptions(run_id=run_id, runs_dir=runs_dir, dashboard_url=dashboard_url, ingest_url=ingest_url))
+    return list_runs(RunsOptions(runs_dir=runs_dir))
 
 
-@cli.command("run", context_settings={"ignore_unknown_options": True, "allow_extra_args": True})
+@cli.command("run", cls=BriefHelpCommand, context_settings={"ignore_unknown_options": True, "allow_extra_args": True})
 @click.option("--agent-id", default="openclaw_agent", show_default=True, help="Agent identifier.")
 @click.option("--tenant-id", default="default", show_default=True, help="Tenant identifier.")
 @click.option("--visibility", default="private", type=click.Choice(["private", "public", "anonymous", "shared"]), show_default=True)
@@ -176,9 +178,6 @@ def dashboard_sync_command(run_id: str, runs_dir: str, dashboard_url: str | None
 @click.option("--cwd", default=None)
 @click.option("--timeout", type=float, default=None)
 @click.option("--runs-dir", default="runs", show_default=True)
-@click.option("--dashboard-url", default=None)
-@click.option("--ingest-url", default=None)
-@click.option("--open-dashboard", is_flag=True)
 @click.argument("agent_command", nargs=-1, type=click.UNPROCESSED)
 def run_command(
     agent_id: str,
@@ -191,9 +190,6 @@ def run_command(
     cwd: str | None,
     timeout: float | None,
     runs_dir: str,
-    dashboard_url: str | None,
-    ingest_url: str | None,
-    open_dashboard: bool,
     agent_command: tuple[str, ...],
 ) -> int:
     """Run and observe a custom agent command."""
@@ -209,15 +205,12 @@ def run_command(
         cwd=cwd,
         timeout=timeout,
         runs_dir=runs_dir,
-        dashboard_url=dashboard_url,
-        ingest_url=ingest_url,
-        open_dashboard=open_dashboard,
         agent_command=agent_command,
     )
     return monitor_openclaw(options)
 
 
-@cli.command("check")
+@cli.command("check", cls=BriefHelpCommand)
 @click.option("--evaluations", default="critiqor_evaluations.jsonl", show_default=True, help="Path to Critiqor JSONL evaluations.")
 @click.option("--agent-id", default=None, help="Optional agent id filter.")
 @click.option("--policy", default=None, help="Path to policy JSON/YAML.")

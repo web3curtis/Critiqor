@@ -1,4 +1,4 @@
-import { mkdirSync, appendFileSync, writeFileSync, existsSync, readFileSync } from "node:fs";
+import { mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
@@ -51,8 +51,7 @@ function resolveSessionPaths() {
     runsDir,
     runId,
     sessionDir,
-    sessionJson: path.join(sessionDir, "session.json"),
-    sessionJsonl: path.join(sessionDir, "session.jsonl")
+    sessionJson: path.join(sessionDir, "session.json")
   };
 }
 
@@ -68,7 +67,7 @@ function ensureSessionFile() {
           run_id: paths.runId,
           schema_version: "critiqor.session.v1",
           created_at: nowIso(),
-          events_file: "session.jsonl",
+          events_file: "session.json",
           events: [],
           metrics: {}
         },
@@ -131,7 +130,6 @@ function normalizeEvent(eventType, sourceLayer, event) {
 function appendEvidence(eventType, sourceLayer, event) {
   const paths = ensureSessionFile();
   const normalized = normalizeEvent(eventType, sourceLayer, event);
-  appendFileSync(paths.sessionJsonl, `${JSON.stringify(normalized)}\n`, "utf8");
   updateSessionSummary(paths, normalized);
 
   if (sourceLayer === "tool_hooks" && (normalized.tool_name === "memory_search" || normalized.tool_name === "memory_get")) {
@@ -143,7 +141,6 @@ function appendEvidence(eventType, sourceLayer, event) {
         observed_as: normalized.event_type
       }
     };
-    appendFileSync(paths.sessionJsonl, `${JSON.stringify(memoryEvent)}\n`, "utf8");
     updateSessionSummary(paths, memoryEvent);
   }
 }
@@ -158,7 +155,7 @@ function updateSessionSummary(paths, event) {
       run_id: paths.runId,
       schema_version: "critiqor.session.v1",
       created_at: nowIso(),
-      events_file: "session.jsonl",
+      events_file: "session.json",
       events: [],
       metrics: {}
     };
@@ -178,7 +175,8 @@ function updateSessionSummary(paths, event) {
 
   session.metrics = metrics;
   session.updated_at = event.timestamp;
-  session.events = [];
+  session.events = Array.isArray(session.events) ? session.events : [];
+  session.events.push(event);
   writeFileSync(paths.sessionJson, JSON.stringify(session, null, 2), "utf8");
 }
 

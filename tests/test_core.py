@@ -1222,74 +1222,78 @@ class CritiqorTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             self.assertEqual(cli_main(["finalize", "--runs-dir", tmp, "--no-dashboard"]), 0)
 
-    def test_finalize_syncs_diagnosis_to_hosted_dashboard(self) -> None:
+    def test_finalize_launches_local_dashboard_with_generated_diagnosis(self) -> None:
         from critiqor.session import create_session
 
-        posted: dict[str, object] = {}
-        opened: list[str] = []
+        served: dict[str, object] = {}
 
-        def fake_sync(url: str, diagnosis: dict[str, object]) -> None:
-            posted["url"] = url
-            posted["diagnosis"] = diagnosis
+        def fake_serve(events: str, runs_dir: str, host: str, port: int, run_id: str | None, open_browser: bool) -> None:
+            served.update({"events": events, "runs_dir": runs_dir, "host": host, "port": port, "run_id": run_id, "open_browser": open_browser})
 
         with tempfile.TemporaryDirectory() as tmp:
             create_session(runs_dir=tmp, agent_id="openclaw_test")
-            with patch("critiqor.runtime.sync_dashboard_diagnosis", fake_sync), patch("critiqor.runtime.webbrowser.open", opened.append):
+            with patch("critiqor.dashboard.serve_dashboard", fake_serve):
                 exit_code = cli_main(["finalize", "--runs-dir", tmp])
 
             diagnosis_path = Path(tmp) / "run_001" / "diagnosis.json"
-            diagnosis_exists = diagnosis_path.exists()
+            session_path = Path(tmp) / "run_001" / "session.json"
+            self.assertTrue(diagnosis_path.exists())
+            self.assertTrue(session_path.exists())
+            session_payload = json.loads(session_path.read_text(encoding="utf-8"))
+
+            self.assertEqual(served["runs_dir"], tmp)
 
         self.assertEqual(exit_code, 0)
-        self.assertEqual(posted["url"], "https://critiqor-core-engine.vercel.app/api/runs/ingest")
-        self.assertEqual(opened, ["https://critiqor-core-engine.vercel.app/?run_id=run_001"])
-        self.assertTrue(diagnosis_exists)
-        diagnosis = posted["diagnosis"]
-        self.assertIsInstance(diagnosis, dict)
-        self.assertEqual(diagnosis["run_id"], "run_001")
+        self.assertEqual(served["run_id"], "run_001")
+        self.assertEqual(served["port"], 0)
+        self.assertTrue(served["open_browser"])
+        self.assertIn("events", session_payload)
 
-    def test_finalize_warns_without_opening_dashboard_when_hosted_sync_fails(self) -> None:
+    def test_finalize_aborts_dashboard_when_diagnosis_is_invalid(self) -> None:
         from critiqor.session import create_session
 
-        opened: list[str] = []
         output = io.StringIO()
 
-        def fail_sync(url: str, diagnosis: dict[str, object]) -> None:
-            raise OSError("not readable by dashboard")
+        def invalid_run(runs_dir: str, run_id: str) -> dict[str, object]:
+            return {"run_id": run_id}
 
         with tempfile.TemporaryDirectory() as tmp:
             create_session(runs_dir=tmp, agent_id="openclaw_test")
-            with patch("critiqor.runtime.sync_dashboard_diagnosis", fail_sync), patch("critiqor.runtime.webbrowser.open", opened.append), contextlib.redirect_stdout(output):
+            with patch("critiqor.dashboard.load_diagnosis_run", invalid_run), patch("critiqor.dashboard.serve_dashboard") as serve, contextlib.redirect_stdout(output):
                 exit_code = cli_main(["finalize", "--runs-dir", tmp])
-            diagnosis_path = Path(tmp) / "run_001" / "diagnosis.json"
 
-        text = output.getvalue()
-        self.assertEqual(exit_code, 0)
-        self.assertEqual(opened, [])
-        self.assertIn(f"Diagnosis saved: {diagnosis_path}", text)
-        self.assertIn("Syncing hosted dashboard...", text)
-        self.assertIn("Dashboard sync failed: not readable by dashboard", text)
-        self.assertIn(f"Your diagnosis report is still available at: {diagnosis_path}", text)
-        self.assertIn("Try again later with: critiqor dashboard sync --run-id run_001", text)
+        self.assertEqual(exit_code, 1)
+        self.assertFalse(serve.called)
+        self.assertIn("Diagnosis file invalid. Dashboard launch aborted.", output.getvalue())
 
-    def test_dashboard_sync_uploads_existing_diagnosis(self) -> None:
+    def test_runs_command_lists_completed_diagnosis_summaries(self) -> None:
         from critiqor.session import create_session, finalize_session
 
-        synced: dict[str, object] = {}
-
-        def fake_sync(url: str, diagnosis: dict[str, object]) -> None:
-            synced["url"] = url
-            synced["run_id"] = diagnosis.get("run_id")
-
+        output = io.StringIO()
         with tempfile.TemporaryDirectory() as tmp:
             create_session(runs_dir=tmp, agent_id="openclaw_test")
             finalize_session(tmp)
-            with patch("critiqor.runtime.sync_dashboard_diagnosis", fake_sync):
-                exit_code = cli_main(["dashboard", "sync", "--runs-dir", tmp, "--run-id", "run_001"])
+            with contextlib.redirect_stdout(output):
+                exit_code = cli_main(["runs", "--runs-dir", tmp])
+
+        text = output.getvalue()
+        self.assertEqual(exit_code, 0)
+        self.assertIn("Available Runs", text)
+        self.assertIn("run_001 | Trust:", text)
+        self.assertIn("Tool Calls", text)
+
+    def test_dashboard_command_opens_specific_local_run(self) -> None:
+        served: dict[str, object] = {}
+
+        def fake_serve(events: str, runs_dir: str, host: str, port: int, run_id: str | None, open_browser: bool) -> None:
+            served.update({"run_id": run_id, "runs_dir": runs_dir, "port": port, "open_browser": open_browser})
+
+        with patch("critiqor.dashboard.serve_dashboard", fake_serve):
+            exit_code = cli_main(["dashboard", "run_008", "--runs", "runs"])
 
         self.assertEqual(exit_code, 0)
-        self.assertEqual(synced["url"], "https://critiqor-core-engine.vercel.app/api/runs/ingest")
-        self.assertEqual(synced["run_id"], "run_001")
+        self.assertEqual(served["run_id"], "run_008")
+        self.assertEqual(served["port"], 0)
 
     def test_cli_help_lists_available_critiqor_commands(self) -> None:
         output = io.StringIO()
@@ -1353,7 +1357,7 @@ class CritiqorTests(unittest.TestCase):
         self.assertEqual(manifest["id"], "critiqor")
         self.assertTrue(manifest["activation"]["onStartup"])
 
-    def test_finalize_prefers_plugin_session_jsonl_evidence(self) -> None:
+    def test_finalize_prefers_plugin_session_json_evidence(self) -> None:
         from critiqor.session import create_session, finalize_session
 
         with tempfile.TemporaryDirectory() as tmp:
@@ -1361,11 +1365,15 @@ class CritiqorTests(unittest.TestCase):
             run_id = session["run_id"]
             evidence_dir = Path(tmp) / run_id
             evidence_dir.mkdir(parents=True, exist_ok=True)
-            evidence_path = evidence_dir / "session.jsonl"
+            evidence_path = evidence_dir / "session.json"
             evidence_path.write_text(
-                "\n".join(
-                    [
-                        json.dumps(
+                json.dumps(
+                    {
+                        "session_id": run_id,
+                        "run_id": run_id,
+                        "schema_version": "critiqor.session.v1",
+                        "events_file": "session.json",
+                        "events": [
                             {
                                 "timestamp": "2026-06-20T00:00:00Z",
                                 "event_type": "tool_call",
@@ -1373,9 +1381,7 @@ class CritiqorTests(unittest.TestCase):
                                 "tool_name": "memory_search",
                                 "tool_call_id": "call_1",
                                 "payload": {"toolName": "memory_search", "input": {"query": "prior decision"}},
-                            }
-                        ),
-                        json.dumps(
+                            },
                             {
                                 "timestamp": "2026-06-20T00:00:01Z",
                                 "event_type": "tool_result",
@@ -1385,9 +1391,7 @@ class CritiqorTests(unittest.TestCase):
                                 "status": "ok",
                                 "duration_ms": 22,
                                 "payload": {"toolName": "memory_search", "content": [{"type": "text", "text": "Found prior decision"}]},
-                            }
-                        ),
-                        json.dumps(
+                            },
                             {
                                 "timestamp": "2026-06-20T00:00:01Z",
                                 "event_type": "memory_search",
@@ -1395,11 +1399,11 @@ class CritiqorTests(unittest.TestCase):
                                 "tool_name": "memory_search",
                                 "tool_call_id": "call_1",
                                 "payload": {"toolName": "memory_search", "observed_as": "tool_output"},
-                            }
-                        ),
-                    ]
-                )
-                + "\n",
+                            },
+                        ],
+                        "metrics": {},
+                    }
+                ),
                 encoding="utf-8",
             )
 

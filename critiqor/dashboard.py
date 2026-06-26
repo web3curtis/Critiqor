@@ -7,6 +7,7 @@ import html
 import json
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
+import webbrowser
 
 from .platform import AgentReliabilityIndex
 from .session import list_completed_runs
@@ -31,9 +32,26 @@ def serve_dashboard(
     event_log_path: str = ".critiqor/events.jsonl",
     runs_dir: str = "runs",
     host: str = "127.0.0.1",
-    port: int = 8765,
+    port: int = 0,
+    run_id: str | None = None,
+    open_browser: bool = True,
 ) -> None:
-    """Serve a local dashboard backed only by finalized run artifacts."""
+    """Serve a local dashboard backed only by finalized diagnosis artifacts."""
+
+    selected_run_id = run_id or latest_diagnosis_run_id(runs_dir)
+    if not selected_run_id:
+        print("Diagnosis file not found.")
+        print()
+        print("Run:")
+        print("critiqor finalize")
+        return
+    diagnosis = load_diagnosis_run(runs_dir, selected_run_id)
+    if diagnosis is None:
+        print(f"Run {selected_run_id} not found.")
+        return
+    if not validate_diagnosis(diagnosis):
+        print("Diagnosis file invalid. Dashboard launch aborted.")
+        return
 
     index = _load_index(event_log_path)
 
@@ -43,11 +61,22 @@ def serve_dashboard(
             if parsed.path == "/api/runs":
                 self._json(_runs(index, runs_dir))
                 return
-            if parsed.path.startswith("/api/runs/"):
-                run_id = parsed.path.rsplit("/", 1)[-1]
-                self._json(_run_by_id(index, runs_dir, run_id))
+            if parsed.path == "/api/run/latest":
+                latest = latest_diagnosis_run_id(runs_dir)
+                run = load_diagnosis_run(runs_dir, latest) if latest else None
+                self._json(run or {"error": "run_not_found"}, 200 if run else 404)
                 return
-            self._html(_render_route(index, event_log_path, parsed.path, runs_dir, parsed.query))
+            if parsed.path.startswith("/api/run/"):
+                requested_run_id = parsed.path.rsplit("/", 1)[-1]
+                run = _run_by_id(index, runs_dir, requested_run_id)
+                self._json(run or {"error": "run_not_found"}, 200 if run else 404)
+                return
+            if parsed.path.startswith("/api/runs/"):
+                requested_run_id = parsed.path.rsplit("/", 1)[-1]
+                run = _run_by_id(index, runs_dir, requested_run_id)
+                self._json(run or {"error": "run_not_found"}, 200 if run else 404)
+                return
+            self._html(_render_route(index, event_log_path, parsed.path, runs_dir, parsed.query, selected_run_id))
 
         def do_OPTIONS(self) -> None:
             self.send_response(204)
@@ -63,8 +92,7 @@ def serve_dashboard(
                 payload = json.loads(body or "{}")
                 self._json(index.dashboard.set_run_visibility(run_id, str(payload.get("visibility", "private"))))
                 return
-            self.send_response(404)
-            self.end_headers()
+            self._json({"error": "not_found"}, 404)
 
         def log_message(self, format: str, *args: object) -> None:
             return
@@ -74,9 +102,9 @@ def serve_dashboard(
             self.send_header("Access-Control-Allow-Methods", "GET,POST,OPTIONS")
             self.send_header("Access-Control-Allow-Headers", "Content-Type")
 
-        def _json(self, payload: object) -> None:
+        def _json(self, payload: object, status: int = 200) -> None:
             body = json.dumps(payload, indent=2, sort_keys=True).encode("utf-8")
-            self.send_response(200)
+            self.send_response(status)
             self.send_header("Content-Type", "application/json")
             self._cors_headers()
             self.send_header("Content-Length", str(len(body)))
@@ -93,7 +121,12 @@ def serve_dashboard(
             self.wfile.write(encoded)
 
     server = ThreadingHTTPServer((host, port), Handler)
-    print(f"Critiqor dashboard: http://{host}:{port}")
+    actual_host, actual_port = server.server_address
+    url = f"http://{actual_host}:{actual_port}/?run_id={selected_run_id}"
+    print(f"Dashboard run: {selected_run_id}")
+    print(f"Critiqor dashboard: {url}")
+    if open_browser:
+        webbrowser.open(url)
     server.serve_forever()
 
 
@@ -104,23 +137,80 @@ def _load_index(event_log_path: str) -> AgentReliabilityIndex:
     return AgentReliabilityIndex(event_log_path=str(path))
 
 
+def diagnosis_path_for(runs_dir: str, run_id: str) -> Path:
+    return Path(runs_dir) / run_id / "diagnosis.json"
+
+
+def load_diagnosis_run(runs_dir: str, run_id: str | None) -> dict[str, object] | None:
+    if not run_id:
+        return None
+    path = diagnosis_path_for(runs_dir, run_id)
+    if not path.exists():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
+
+
+def validate_diagnosis(payload: dict[str, object] | None) -> bool:
+    if not isinstance(payload, dict):
+        return False
+    run_id = payload.get("run_id")
+    if not run_id:
+        return False
+    summary = payload.get("executive_summary")
+    has_summary_score = isinstance(summary, dict) and "trust_score" in summary
+    return has_summary_score or "trust_score" in payload
+
+
+def list_diagnosis_runs(runs_dir: str = "runs") -> list[dict[str, object]]:
+    root = Path(runs_dir)
+    runs: list[dict[str, object]] = []
+    if root.exists():
+        for path in sorted(root.glob("run_*/diagnosis.json")):
+            try:
+                payload = json.loads(path.read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                continue
+            if isinstance(payload, dict) and validate_diagnosis(payload):
+                runs.append(payload)
+    if not runs:
+        artifacts = list_completed_runs(runs_dir)
+        runs = [dict(run.get("diagnosis") or {}) for run in artifacts if isinstance(run.get("diagnosis"), dict)]
+    return sorted(runs, key=lambda item: str(item.get("run_id", "")))
+
+
+def latest_diagnosis_run_id(runs_dir: str = "runs") -> str | None:
+    runs = list_diagnosis_runs(runs_dir)
+    if not runs:
+        return None
+    return str(runs[-1].get("run_id"))
+
+
 def _runs(index: AgentReliabilityIndex, runs_dir: str = "runs") -> list[dict[str, object]]:
-    artifacts = list_completed_runs(runs_dir)
-    if artifacts:
-        return [dict(run.get("diagnosis") or {}) for run in artifacts if isinstance(run.get("diagnosis"), dict)]
+    runs = list_diagnosis_runs(runs_dir)
+    if runs:
+        return runs
     return [index.dashboard.run_diagnosis_view(run_id) for run_id in sorted(index.store.runs)]
 
 
-def _run_by_id(index: AgentReliabilityIndex, runs_dir: str, run_id: str) -> dict[str, object]:
+def _run_by_id(index: AgentReliabilityIndex, runs_dir: str, run_id: str) -> dict[str, object] | None:
+    run = load_diagnosis_run(runs_dir, run_id)
+    if run is not None:
+        return run
     for artifact in list_completed_runs(runs_dir):
         if artifact.get("run_id") == run_id and isinstance(artifact.get("diagnosis"), dict):
             return dict(artifact["diagnosis"])
-    return index.dashboard.run_diagnosis_view(run_id)
+    if run_id in index.store.runs:
+        return index.dashboard.run_diagnosis_view(run_id)
+    return None
 
 
-def _render_route(index: AgentReliabilityIndex, event_log_path: str, path: str, runs_dir: str = "runs", query: str = "") -> str:
+def _render_route(index: AgentReliabilityIndex, event_log_path: str, path: str, runs_dir: str = "runs", query: str = "", context_run_id: str | None = None) -> str:
     runs = _runs(index, runs_dir)
-    selected_run_id = parse_qs(query).get("run_id", [None])[0]
+    selected_run_id = parse_qs(query).get("run_id", [context_run_id])[0]
     run = next((item for item in runs if str(item.get("run_id")) == selected_run_id), None) if selected_run_id else None
     run = run or (runs[-1] if runs else None)
     routes = {
@@ -354,7 +444,7 @@ def _render_causal_graph(run: dict[str, object] | None, runs: list[dict[str, obj
 
 def _render_benchmarks(run: dict[str, object] | None, runs: list[dict[str, object]], index: AgentReliabilityIndex, event_log_path: str) -> str:
     if not run:
-        return _empty_state("No benchmark data", "Benchmark results appear after a monitored run is ingested.", "/onboarding")
+        return _empty_state("No benchmark data", "Benchmark results appear after a monitored run is finalized.", "/onboarding")
     summary = _summary(run)
     score = int(summary.get("trust_score") or 0)
     return f"""
@@ -392,9 +482,9 @@ def _render_trust(run: dict[str, object] | None, runs: list[dict[str, object]], 
 <div class="page">
   <section class="panel"><div class="panel-header"><div><h2>How Critiqor obtains evidence</h2><p>Critiqor observes explicit OpenClaw runtime events and turns them into diagnosis. It does not read private thoughts, scan your project, or watch unrelated processes.</p></div><span class="pill green">Local-first</span></div><div class="flow setup"><div class="flow-step"><b>OpenClaw Agent</b><span>Connected runtime</span></div><div class="flow-step"><b>Critiqor Observer</b><span>Explicit attachment</span></div><div class="flow-step"><b>Structured Event Log</b><span>Tool and memory events</span></div><div class="flow-step"><b>Evaluation Engine</b><span>Evidence-first rules</span></div><div class="flow-step"><b>Dashboard</b><span>Human-readable output</span></div></div></section>
   <section class="two-grid"><div class="panel"><h2>Critiqor does not</h2><ul class="clean-list"><li>Read agent thoughts</li><li>Scan filesystem contents</li><li>Intercept unrelated processes</li><li>Collect hidden telemetry</li></ul></div><div class="panel"><h2>Critiqor does</h2><ul class="clean-list"><li>Observe runtime events</li><li>Capture tool calls and outputs</li><li>Capture memory events and retries</li><li>Capture execution traces</li></ul></div></section>
-  <section class="panel"><h2>Privacy model</h2><div class="cards"><div class="card"><b>Local First</b><p>All runtime analysis can occur locally before optional upload.</p></div><div class="card"><b>Visibility Controls</b><p>Private, Public, Anonymous, or Benchmark Opt-In.</p></div><div class="card"><b>No Hidden Telemetry</b><p>Only explicitly emitted runtime events are processed.</p></div><div class="card"><b>Data Ownership</b><p>Users own their runtime data.</p></div></div></section>
+  <section class="panel"><h2>Privacy model</h2><div class="cards"><div class="card"><b>Local First</b><p>Runtime analysis occurs locally from Critiqor session and diagnosis artifacts.</p></div><div class="card"><b>Visibility Controls</b><p>Private, Public, Anonymous, or Benchmark Opt-In.</p></div><div class="card"><b>No Hidden Telemetry</b><p>Only explicitly emitted runtime events are processed.</p></div><div class="card"><b>Data Ownership</b><p>Users own their runtime data.</p></div></div></section>
   <section class="panel"><h2>How Critiqor protects your data</h2><div class="two-grid"><ul class="clean-list"><li>Explicit runtime attachment</li><li>User-controlled visibility</li><li>Structured event ingestion</li></ul><ul class="clean-list"><li>No hidden monitoring</li><li>Tenant isolation architecture</li><li>Public benchmark participation is opt-in</li></ul></div></section>
-  <section class="panel"><h2>FAQ</h2><div class="card-list"><div class="info-row"><span>Does Critiqor read my code?</span><b>No. It observes runtime events generated by the connected agent.</b></div><div class="info-row"><span>Does Critiqor send my data to a server?</span><b>Only if hosted dashboard functionality is explicitly enabled.</b></div><div class="info-row"><span>Can I keep everything private?</span><b>Yes. Private visibility prevents public sharing.</b></div><div class="info-row"><span>Can I contribute anonymously?</span><b>Yes. Anonymous benchmark participation is supported.</b></div></div></section>
+  <section class="panel"><h2>FAQ</h2><div class="card-list"><div class="info-row"><span>Does Critiqor read my code?</span><b>No. It observes runtime events generated by the connected agent.</b></div><div class="info-row"><span>Does Critiqor send my data to a server?</span><b>No. The local dashboard reads diagnosis artifacts from your machine.</b></div><div class="info-row"><span>Can I keep everything private?</span><b>Yes. Private visibility prevents public sharing.</b></div><div class="info-row"><span>Can I contribute anonymously?</span><b>Yes. Anonymous benchmark participation is supported.</b></div></div></section>
 </div>
 """
 
