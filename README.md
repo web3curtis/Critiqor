@@ -939,7 +939,8 @@ payload = result.to_dict()
 
 ## Supported Agents
 
-Critiqor can wrap objects that expose one of these interfaces:
+Critiqor currently supports the OpenClaw framework, but will support other agents in the future. 
+It can wrap objects that expose one of these interfaces:
 
 - `run(prompt)`
 - `invoke(prompt)`
@@ -1002,26 +1003,6 @@ It does not:
 - Replace human review for high-stakes work.
 - Automatically observe arbitrary third-party frameworks unless they are wired
   through `CritiqorTracer`, `monitor()`, or an OpenTelemetry-compatible adapter.
-
-## Local Verification
-
-Run the example:
-
-```bash
-python examples/simple_usage.py
-```
-
-Run the smoke experiment:
-
-```bash
-python experiments/sandbox_eval.py
-```
-
-Run focused regression checks:
-
-```bash
-python -m unittest discover -s tests -v
-```
 
 ## Status
 
