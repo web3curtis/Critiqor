@@ -1082,6 +1082,8 @@ class CritiqorTests(unittest.TestCase):
         started: dict[str, object] = {}
 
         class FakeProcess:
+            pid = 12345
+
             def poll(self) -> None:
                 return None
 
@@ -1114,6 +1116,33 @@ class CritiqorTests(unittest.TestCase):
         self.assertEqual(started["dashboard_dir"], dashboard_dir.resolve())
         wait.assert_called_once_with("127.0.0.1", 4123, "run_008")
         self.assertEqual(opened, ["http://127.0.0.1:4123/?run_id=run_008"])
+
+
+    def test_dashboard_launcher_reuses_existing_server(self) -> None:
+        from critiqor.dashboard import serve_dashboard, write_dashboard_server_record
+
+        opened: list[str] = []
+        with tempfile.TemporaryDirectory() as tmp:
+            dashboard_dir = Path(tmp) / "core"
+            dashboard_dir.mkdir()
+            (dashboard_dir / "package.json").write_text("{}", encoding="utf-8")
+            (dashboard_dir / "src" / "routes").mkdir(parents=True)
+            (dashboard_dir / "src" / "routes" / "index.tsx").write_text("", encoding="utf-8")
+            (dashboard_dir / "src" / "lib").mkdir(parents=True)
+            (dashboard_dir / "src" / "lib" / "critiqor-api-store.server.ts").write_text("", encoding="utf-8")
+            runs_dir = Path(tmp) / "runs"
+            run_dir = runs_dir / "run_009"
+            run_dir.mkdir(parents=True)
+            (run_dir / "diagnosis.json").write_text(json.dumps({"run_id": "run_009", "executive_summary": {"trust_score": 90}}), encoding="utf-8")
+            write_dashboard_server_record(runs_dir, "127.0.0.1", 4444, 12345, dashboard_dir)
+
+            with patch.dict(os.environ, {"CRITIQOR_DASHBOARD_DIR": str(dashboard_dir)}),                 patch("critiqor.dashboard.wait_for_dashboard_run") as wait,                 patch("critiqor.dashboard.start_core_engine_dashboard") as start,                 patch("critiqor.dashboard.webbrowser.open", opened.append):
+                exit_code = serve_dashboard(runs_dir=str(runs_dir), host="127.0.0.1", run_id="run_009")
+
+        self.assertEqual(exit_code, 0)
+        self.assertFalse(start.called)
+        wait.assert_called_with("127.0.0.1", 4444, "run_009")
+        self.assertEqual(opened, ["http://127.0.0.1:4444/?run_id=run_009"])
 
     def test_dashboard_launcher_aborts_when_run_is_missing(self) -> None:
         from critiqor.dashboard import serve_dashboard
