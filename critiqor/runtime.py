@@ -251,7 +251,7 @@ def finalize_observation(options: FinalizeOptions) -> int:
 def serve_local_dashboard(options: DashboardOptions) -> int:
     from .dashboard import serve_dashboard
 
-    serve_dashboard(
+    return serve_dashboard(
         options.events,
         runs_dir=options.runs,
         host=options.host,
@@ -259,7 +259,6 @@ def serve_local_dashboard(options: DashboardOptions) -> int:
         run_id=options.run_id,
         open_browser=options.open_browser,
     )
-    return 0
 
 
 def list_runs(options: RunsOptions) -> int:

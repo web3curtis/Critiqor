@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -49,7 +50,6 @@ from critiqor import (
     submit_run,
 )
 from critiqor.cli import main as cli_main
-from critiqor.dashboard import _render_route
 
 
 class RunAgent:
@@ -1075,38 +1075,56 @@ class CritiqorTests(unittest.TestCase):
             "leaderboard_score",
         })
 
-    def test_dashboard_trust_privacy_page_explains_evidence_and_controls(self) -> None:
-        index = AgentReliabilityIndex()
-        html = _render_route(index, "events.jsonl", "/trust")
+    def test_dashboard_launcher_opens_core_engine_after_run_is_readable(self) -> None:
+        from critiqor.dashboard import serve_dashboard
 
-        self.assertIn("Trust &amp; Privacy", html)
-        self.assertIn("OpenClaw Agent", html)
-        self.assertIn("Structured Event Log", html)
-        self.assertIn("Local First", html)
-        self.assertIn("No Hidden Telemetry", html)
-        self.assertIn("Does Critiqor read my code?", html)
+        opened: list[str] = []
+        started: dict[str, object] = {}
 
-    def test_dashboard_progressive_disclosure_keeps_raw_trace_out_of_overview(self) -> None:
-        index = AgentReliabilityIndex()
-        accepted = index.ingest_run(build_openclaw_run_payload(
-            agent_id="openclaw_ui",
-            tenant_id="tenant_ui",
-            events=[
-                {"event": "tool_call", "tool": "search", "args": {"q": "alpha"}},
-                {"event": "tool_output", "tool": "search", "output": "alpha", "used": False},
-            ],
-        ))
+        class FakeProcess:
+            def poll(self) -> None:
+                return None
 
-        overview = _render_route(index, "events.jsonl", "/")
-        evidence = _render_route(index, "events.jsonl", "/evidence")
-        onboarding = _render_route(index, "events.jsonl", "/onboarding")
+            def wait(self, timeout: float | None = None) -> int:
+                return 0
 
-        self.assertIn("Recommended next action", overview)
-        self.assertIn("Agent Reliability Trend", overview)
-        self.assertNotIn("Raw execution trace", overview)
-        self.assertIn("Raw execution trace", evidence)
-        self.assertIn("critiqor monitor openclaw", onboarding)
-        self.assertIn(accepted.run_id, evidence)
+        with tempfile.TemporaryDirectory() as tmp:
+            dashboard_dir = Path(tmp) / "core"
+            dashboard_dir.mkdir()
+            (dashboard_dir / "package.json").write_text("{}", encoding="utf-8")
+            (dashboard_dir / "src" / "routes").mkdir(parents=True)
+            (dashboard_dir / "src" / "routes" / "index.tsx").write_text("", encoding="utf-8")
+            (dashboard_dir / "src" / "lib").mkdir(parents=True)
+            (dashboard_dir / "src" / "lib" / "critiqor-api-store.server.ts").write_text("", encoding="utf-8")
+            run_dir = Path(tmp) / "runs" / "run_008"
+            run_dir.mkdir(parents=True)
+            (run_dir / "diagnosis.json").write_text(json.dumps({"run_id": "run_008", "executive_summary": {"trust_score": 84}}), encoding="utf-8")
+
+            def fake_start(found_dir: Path, runs_dir: str, host: str, port: int) -> FakeProcess:
+                started.update({"dashboard_dir": found_dir, "runs_dir": runs_dir, "host": host, "port": port})
+                return FakeProcess()
+
+            with patch.dict(os.environ, {"CRITIQOR_DASHBOARD_DIR": str(dashboard_dir)}), \
+                patch("critiqor.dashboard.start_core_engine_dashboard", fake_start), \
+                patch("critiqor.dashboard.wait_for_dashboard_run") as wait, \
+                patch("critiqor.dashboard.webbrowser.open", opened.append):
+                exit_code = serve_dashboard(runs_dir=str(Path(tmp) / "runs"), host="127.0.0.1", port=4123, run_id="run_008")
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(started["dashboard_dir"], dashboard_dir.resolve())
+        wait.assert_called_once_with("127.0.0.1", 4123, "run_008")
+        self.assertEqual(opened, ["http://127.0.0.1:4123/?run_id=run_008"])
+
+    def test_dashboard_launcher_aborts_when_run_is_missing(self) -> None:
+        from critiqor.dashboard import serve_dashboard
+
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(output), patch("critiqor.dashboard.start_core_engine_dashboard") as start:
+            exit_code = serve_dashboard(runs_dir=tmp, run_id="run_008")
+
+        self.assertEqual(exit_code, 1)
+        self.assertFalse(start.called)
+        self.assertIn("Run run_008 not found.", output.getvalue())
 
     def test_openclaw_diagnosis_detects_runtime_failure_taxonomy(self) -> None:
         events = [
