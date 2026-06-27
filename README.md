@@ -261,21 +261,13 @@ critiqor runs
 critiqor dashboard run_001
 ```
 
-Commands:
-critiqor monitor openclaw
-- Launch OpenClaw TUI via (openclaw chat) and begin runtime observation
-
-critiqor finalize
-- Stop observation session, generate diagnosis, and open the local dashboard
-
-critiqor dashboard [run_id]
-- Open the latest or selected local diagnosis dashboard
-
-critiqor runs
-- List completed evaluations with summaries
-
-critiqor help
-- Show available commands
+| Command                    | Purpose                                                                                  |
+|---------------------------|------------------------------------------------------------------------------------------|
+| `critiqor monitor openclaw` | Launches the OpenClaw TUI via `openclaw chat` and begins runtime observation            |
+| `critiqor finalize`         | Stops the observation session, generates a diagnosis, and opens the local dashboard     |
+| `critiqor dashboard [run_id]` | Opens the latest or specified local diagnosis dashboard using the given `run_id`        |
+| `critiqor runs`             | Lists completed evaluations with summaries                                               |
+| `critiqor help`             | Shows all available Critiqor CLI commands                                               |
 
 
 ### Step 5 — Review Results
