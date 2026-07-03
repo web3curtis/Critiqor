@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import click
 
+from .banner import CRITIQOR_ASCII_LOGO
+
 
 class BriefHelpCommand(click.Command):
     """Command help that shows the purpose without advanced option noise."""
@@ -32,7 +34,9 @@ from .runtime import (
     serve_local_dashboard,
 )
 
-_COMMAND_HELP = """Critiqor CLI
+_COMMAND_HELP = f"""{CRITIQOR_ASCII_LOGO}
+
+Critiqor CLI
 
 Commands:
 
@@ -59,6 +63,8 @@ def cli(ctx: click.Context) -> None:
     """Runtime reliability intelligence for OpenClaw agents."""
 
     if ctx.invoked_subcommand is None:
+        click.echo(CRITIQOR_ASCII_LOGO)
+        click.echo()
         click.echo(ctx.get_help())
 
 

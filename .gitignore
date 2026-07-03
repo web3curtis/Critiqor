@@ -8,3 +8,8 @@ dist/
 build/
 *.egg-info/
 .env
+.critiqor/
+runs/
+critiqor-test/
+private_backend/
+clawhub/*/reports/

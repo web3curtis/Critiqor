@@ -9,8 +9,8 @@ from pathlib import Path
 import time
 from typing import Any
 
-from .openclaw import build_openclaw_run_payload, diagnose_openclaw_events
-from .platform import AgentReliabilityIndex
+from .backend import BackendConfigurationError, BackendResponseError, backend_configuration_hint, submit_evidence
+from .schemas import EvidenceSubmission
 
 IDLE = "IDLE"
 MONITORING = "MONITORING"
@@ -311,35 +311,44 @@ def finalize_session(runs_dir: str | Path = "runs") -> dict[str, Any] | None:
     lifecycle_events = [dict(event) for event in session.get("event_log", [])]
     events = [*stored_events, *plugin_events, *[event for event in lifecycle_events if event not in stored_events]]
     write_session_evidence_summary(runs_dir, run_id, events)
-    diagnosis = diagnose_openclaw_events(events)
-    payload = build_openclaw_run_payload(
-        agent_id=str(metadata.get("agent_id", "openclaw_agent")),
-        tenant_id=str(metadata.get("tenant_id", "default")),
+
+    submission = EvidenceSubmission(
+        run_id=run_id,
+        metadata={
+            **metadata,
+            "framework": metadata.get("framework", "openclaw"),
+            "session_json": str(paths.evidence_summary_path(run_id)),
+        },
+        session={key: value for key, value in session.items() if key != "diagnosis"},
         events=events,
-        diagnosis=diagnosis,
-        benchmark_id=str(metadata.get("benchmark_id", "openclaw_runtime_v1")),
-        difficulty_tier=str(metadata.get("difficulty_tier", "standard")),
-        visibility=str(metadata.get("visibility", "private")),
     )
-    index = AgentReliabilityIndex()
-    accepted = index.ingest_run(payload)
-    dashboard_view = index.dashboard.run_diagnosis_view(accepted.run_id)
-    dashboard_view["run_id"] = run_id
-    dashboard_view["raw_evidence"] = {"session_json": str(paths.evidence_summary_path(run_id))}
-    write_diagnosis_artifact(runs_dir, run_id, dashboard_view)
+    try:
+        diagnosis_result = submit_evidence(submission)
+    except (BackendConfigurationError, BackendResponseError) as exc:
+        session["status"] = FINALIZING
+        append_event(session, "error_event", {"source": "critiqor_backend", "message": str(exc)})
+        write_json(paths.run_path(run_id), session)
+        raise RuntimeError(f"Diagnosis backend unavailable: {exc}. {backend_configuration_hint()}") from exc
+
+    diagnosis = diagnosis_result.to_dict()
+    diagnosis["run_id"] = run_id
+    diagnosis.setdefault("raw_evidence", {})["session_json"] = str(paths.evidence_summary_path(run_id))
+    write_diagnosis_artifact(runs_dir, run_id, diagnosis)
     finalized_at = utc_now()
+    summary = diagnosis.get("executive_summary") if isinstance(diagnosis.get("executive_summary"), dict) else {}
+    evidence_panel = diagnosis.get("evidence_panel") if isinstance(diagnosis.get("evidence_panel"), dict) else {}
     session.update(
         {
             "status": COMPLETED,
             "timestamps": {**dict(session.get("timestamps") or {}), "finalized_at": finalized_at},
             "lifecycle": [*list(session.get("lifecycle", [])), {"state": COMPLETED, "timestamp": finalized_at}],
             "event_log": events,
-            "diagnosis": dashboard_view,
-            "trust_score": dashboard_view["executive_summary"]["trust_score"],
-            "confidence_score": payload.get("evaluation_confidence", 0),
-            "causal_graph": dashboard_view["evidence_panel"].get("causal_graph", {"nodes": [], "edges": []}),
-            "failure_analysis": dashboard_view.get("failure_analysis", {}),
-            "cost_analysis": dashboard_view.get("cost_analysis", {}),
+            "diagnosis": diagnosis,
+            "trust_score": summary.get("trust_score", diagnosis.get("trust_score")),
+            "confidence_score": diagnosis.get("evaluation_confidence", diagnosis.get("confidence_score")),
+            "causal_graph": evidence_panel.get("causal_graph", diagnosis.get("causal_graph", {"nodes": [], "edges": []})),
+            "failure_analysis": diagnosis.get("failure_analysis", {}),
+            "cost_analysis": diagnosis.get("cost_analysis", {}),
         }
     )
     write_json(paths.run_path(run_id), session)

@@ -1,0 +1,14 @@
+include README.md
+include LICENSE
+include CHANGELOG.md
+recursive-include critiqor/clawhub/critiqor-openclaw *.js *.json
+recursive-include docs *.md
+prune private_backend
+prune runs
+prune critiqor-test
+prune .critiqor
+prune tests
+prune experiments
+prune clawhub/*/reports
+exclude demo.py
+exclude capture-dashboard.mjs

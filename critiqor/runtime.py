@@ -11,9 +11,7 @@ import shutil
 import subprocess
 import sys
 from typing import Any
-from .core import check_policy, load_evaluations
 from .openclaw import monitor_openclaw_process
-from .platform import AgentReliabilityIndex
 from .session import (
     abort_session,
     append_event_to_run,
@@ -219,7 +217,12 @@ def finalize_observation(options: FinalizeOptions) -> int:
     print("Stopping observer...")
     print("Finalizing evidence...")
     print("Generating diagnosis...")
-    session = finalize_session(options.runs_dir)
+    try:
+        session = finalize_session(options.runs_dir)
+    except RuntimeError as exc:
+        print(str(exc))
+        print("Diagnosis was not generated. Evidence remains available in the run session artifact.")
+        return 1
     if session is None:
         print("No active Critiqor monitoring session found.")
         print("Start one with:")
@@ -297,31 +300,23 @@ def run_legacy_openclaw_command(options: MonitorOpenClawOptions) -> int:
         print("Critiqor OpenClaw run requires an agent command after --.")
         return 2
 
-    payload = monitor_openclaw_process(
+    events = monitor_openclaw_process(
         command,
         agent_id=options.agent_id,
         tenant_id=options.tenant_id,
-        visibility=options.visibility,
         benchmark_id=options.benchmark_id,
         difficulty_tier=options.difficulty_tier,
         cwd=options.cwd,
         timeout=options.timeout,
     )
-    index = AgentReliabilityIndex(event_log_path=options.events)
-    accepted = index.ingest_run(payload)
-    diagnosis = index.dashboard.run_diagnosis_view(accepted.run_id)
     output_path = Path(options.evaluation)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(diagnosis, indent=2, sort_keys=True), encoding="utf-8")
+    output_path.write_text(json.dumps({"events": events}, indent=2, sort_keys=True), encoding="utf-8")
 
     print("Critiqor observed OpenClaw execution")
-    print(f"run_id: {accepted.run_id}")
-    print(f"trust_score: {diagnosis['executive_summary']['trust_score']}")
-    print(f"readiness_level: {diagnosis['executive_summary']['readiness_level']}")
-    print(f"primary_diagnosis: {diagnosis['primary_diagnosis'].get('root_cause_failure_type')}")
-    print(f"event_log: {options.events}")
-    print(f"dashboard_json: {output_path}")
-    print("dashboard: run `critiqor dashboard` after finalizing a monitored session")
+    print(f"events_collected: {len(events)}")
+    print(f"evidence_json: {output_path}")
+    print("Run `critiqor monitor openclaw` and `critiqor finalize` to generate a private-backend diagnosis.")
     return 0
 
 
@@ -332,20 +327,27 @@ def check_deployment_policy(options: PolicyCheckOptions) -> int:
     if options.maximum_hallucination_risk is not None:
         policy["maximum_hallucination_risk"] = options.maximum_hallucination_risk
 
-    evaluations = load_evaluations(options.evaluations, agent_id=options.agent_id, limit=1)
-    if not evaluations:
+    source = Path(options.evaluations)
+    if not source.exists():
         print("Deployment blocked")
-        print("No Critiqor evaluations found.")
+        print("No Critiqor diagnosis artifact found.")
         return 1
-
-    result = check_policy(evaluations[-1], policy)
-    if result.passed:
-        print("Deployment allowed")
-    else:
+    try:
+        payload = json.loads(source.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
         print("Deployment blocked")
-    for message in result.messages:
-        print(message)
-    return 0 if result.passed else 1
+        print("Diagnosis artifact is invalid JSON.")
+        return 1
+    summary = payload.get("executive_summary") if isinstance(payload.get("executive_summary"), dict) else payload
+    trust = int(summary.get("trust_score", 0) or 0)
+    minimum = int(policy.get("minimum_trust_score", 0) or 0)
+    if trust >= minimum:
+        print("Deployment allowed")
+        print(f"trust_score {trust} >= required {minimum}")
+        return 0
+    print("Deployment blocked")
+    print(f"trust_score {trust} < required {minimum}")
+    return 1
 
 
 def parse_openclaw_command(raw_command: str) -> list[str]:
