@@ -178,10 +178,6 @@ Critiqor does:
 - submit evidence only to the configured backend
 - render dashboard data from `diagnosis.json`
 
-## Package Boundary Audit
-
-See [`docs/public-package-audit.md`](docs/public-package-audit.md) for the module-by-module Public/Private classification and the exact modules excluded from the public PyPI distribution.
-
 ## Why Use Critiqor
 
 Use Critiqor when you need runtime evidence for OpenClaw agent behavior, a dashboard-ready diagnosis from a controlled backend, and a clean workflow for observing agent reliability without exposing proprietary evaluation logic in the installed package.
@@ -192,64 +188,6 @@ save_benchmark_contribution(contribution)
 
 The contribution does not include prompts, private outputs, tool outputs, or
 sensitive content.
-
-## Dashboard Data And Insights
-
-V1.2 adds the data layer for a future dashboard without building UI yet:
-
-```python
-from critiqor import ReliabilityDashboardData, generate_insights
-
-dashboard = ReliabilityDashboardData(run_history=records, benchmarks=[benchmark_result])
-
-dashboard.get_trends()
-dashboard.get_benchmarks()
-dashboard.get_failures()
-
-insight = generate_insights(records)
-print(insight.summary)
-```
-
-## Networked Reliability Intelligence
-
-V1.3 turns Critiqor from a per-run evaluator into a small networked reliability
-system:
-
-- `register_agent(...)` stores an `AgentProfile`.
-- `submit_run(...)` attaches evaluations to an agent and stores causal graphs
-  when run ids and failure causes are available.
-- `generate_leaderboard(...)` ranks agents within a category.
-- `build_causal_graph(...)` converts traces and failure events into directed
-  causal chains.
-- `explain_failure_chain(...)` turns a stored causal graph into readable
-  debugging text.
-- `clear_network_state()` resets the in-memory registry for tests or isolated
-  benchmark sessions.
-
-## Platform Flywheel
-
-The platform architecture is designed around the reliability feedback loop:
-
-```text
-SDK emits run
-  -> ingestion API stores it
-  -> analytics computes intelligence
-  -> leaderboard updates rankings
-  -> dashboard/API expose results
-  -> users improve agents
-  -> new runs enter the system
-```
-
-The platform moat comes from four structural properties:
-
-- Cross-user benchmark network: global distributions answer “what percentile is
-  my agent globally?”
-- Persistent global dataset: append-only run history makes behavior replayable
-  and hard to replicate.
-- Causal intelligence aggregation: ecosystem-level failure distributions reveal
-  the dominant ways agents fail.
-- CI/CD enforcement adoption: `critiqor check` turns reliability from optional
-  feedback into deployment infrastructure.
 
 ## V2 Infrastructure Guarantees
 
@@ -272,35 +210,6 @@ The `trust_level` is derived from the evidence-weighted confidence:
 | `50-74` | `Moderate` |
 | `0-49` | `Low` |
 
-## Result Shape
-
-```python
-result.answer
-result.confidence
-result.trust_level
-result.critique.hallucination
-result.critique.reasoning
-result.critique.tool_reliability
-result.critique.tool_use  # compatibility alias
-result.critique.consistency
-result.critique.task_completion
-result.critique.confidence_calibration
-result.critique.execution_efficiency
-result.critique.evidence_level
-result.critique.summary
-result.critique.findings
-result.evidence.evidence_level
-result.failure_causes
-result.evaluation_confidence
-result.deployment_recommendation
-result.benchmark_percentile
-```
-
-For logging or automation:
-
-```python
-payload = result.to_dict()
-```
 
 ## Supported Agents
 
@@ -380,12 +289,3 @@ contributions, dashboard data APIs, cross-agent leaderboards, causal failure
 graphs, evidence confidence levels, and `High` / `Moderate` / `Low` trust
 labels.
 
-## Included Files
-
-- `critiqor/core.py`: Core wrapper and result objects
-- `examples/simple_usage.py`: Minimal copy-paste example
-- `experiments/sandbox_eval.py`: End-to-end smoke demo
-- `tests/test_core.py`: Focused regression checks
-=======
-Do not use Critiqor if you need a fully offline open-source scoring engine. The public package intentionally does not include Critiqor's proprietary diagnosis and reliability algorithms.
->>>>>>> 543bb76 (Refactor public package boundary)
