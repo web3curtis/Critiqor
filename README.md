@@ -8,41 +8,6 @@ Critiqor is a runtime evidence collection client for OpenClaw agents. It launche
 
 Critiqor does not evaluate agent outputs by asking the agent to explain itself. It records observable runtime evidence.
 
-## Public Package Boundary
-
-The public PyPI package includes only developer-facing client functionality:
-
-- CLI commands
-- session management
-- OpenClaw runtime integration
-- runtime evidence collection
-- public event schemas
-- private backend API client
-- dashboard launcher
-- Clawhub evidence plugin
-
-The public PyPI package does **not** include:
-
-- diagnosis engine
-- reliability engine
-- benchmark engine
-- trust score algorithms
-- root-cause analysis implementation
-- recommendation engine
-- leaderboard implementation
-- internal evaluation heuristics
-
-Those components live in the private Critiqor backend.
-
-```mermaid
-flowchart LR
-    A[OpenClaw Runtime] --> B[Critiqor Public Client]
-    B --> C[runs/run_id/session.json]
-    C --> D[Private Critiqor Backend]
-    D --> E[runs/run_id/diagnosis.json]
-    E --> F[Dashboard]
-```
-
 ## Quick Start
 
 ### Step 1 - Install Critiqor
@@ -115,6 +80,41 @@ Historical runs can be reopened with:
 ```bash
 critiqor runs
 critiqor dashboard run_001
+```
+
+## Public Package Boundary
+
+The public PyPI package includes only developer-facing client functionality:
+
+- CLI commands
+- session management
+- OpenClaw runtime integration
+- runtime evidence collection
+- public event schemas
+- private backend API client
+- dashboard launcher
+- Clawhub evidence plugin
+
+The public PyPI package does **not** include:
+
+- diagnosis engine
+- reliability engine
+- benchmark engine
+- trust score algorithms
+- root-cause analysis implementation
+- recommendation engine
+- leaderboard implementation
+- internal evaluation heuristics
+
+Those components live in the private Critiqor backend.
+
+```mermaid
+flowchart LR
+    A[OpenClaw Runtime] --> B[Critiqor Public Client]
+    B --> C[runs/run_id/session.json]
+    C --> D[Private Critiqor Backend]
+    D --> E[runs/run_id/diagnosis.json]
+    E --> F[Dashboard]
 ```
 
 | Command | Purpose |
