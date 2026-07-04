@@ -182,10 +182,6 @@ Critiqor does:
 
 Use Critiqor when you need runtime evidence for OpenClaw agent behavior, a dashboard-ready diagnosis from a controlled backend, and a clean workflow for observing agent reliability without exposing proprietary evaluation logic in the installed package.
 
-<<<<<<< HEAD
-save_benchmark_contribution(contribution)
-```
-
 The contribution does not include prompts, private outputs, tool outputs, or
 sensitive content.
 
