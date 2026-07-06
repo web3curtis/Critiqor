@@ -23,26 +23,24 @@
   <code>pip install critiqor</code>
 </p>
 
-Critiqor observes AI agents while they run, captures runtime evidence, and turns that evidence into reliability insight developers can act on.
+Critiqor helps developers understand whether AI agent runs can be trusted. It observes agent execution, produces a reliability report, and gives teams a clearer way to review agent behavior before relying on the result.
 
-Instead of relying on model self-reporting, Critiqor helps you see what actually happened during execution: tool use, retries, runtime events, failures, cost signals, and reliability patterns.
+Instead of asking an agent to explain itself after the fact, Critiqor focuses on observable behavior from the run.
 
 ---
 
 ## Introduction
 
-AI agents are powerful, but final answers do not tell the whole story.
+AI agents are powerful, but a final answer does not always tell the whole story.
 
-An agent can produce a useful response while hiding execution problems underneath: repeated tool calls, ignored outputs, memory drift, retry loops, unnecessary cost, or unstable runtime behavior.
-
-Critiqor is built for developers who want to evaluate the work, not just the answer.
+An agent can return something useful while still behaving unreliably during execution. Critiqor gives developers a practical review layer for understanding whether a run looked healthy, risky, inefficient, or worth investigating further.
 
 With Critiqor, you can:
 
-- observe agent execution in real time
-- diagnose reliability issues from runtime evidence
-- review historical runs
-- compare behavior across iterations
+- observe agent runs from the terminal
+- review reliability reports in a dashboard
+- compare previous runs
+- spot behavior that needs developer review
 - improve agents with measurable feedback
 
 ---
@@ -51,15 +49,15 @@ With Critiqor, you can:
 
 ![Critiqor dashboard preview](assets/dashboard-preview.png)
 
-After an observation session, Critiqor opens a dashboard that gives you a clear reliability report.
+After an observation session, Critiqor opens a dashboard that summarizes the run in a format designed for developers and teams.
 
 You can review:
 
 - **Executive Summary** - the fast answer on whether the run looks healthy
-- **Trust Assessment** - confidence and readiness signals
-- **Primary Diagnosis** - what went wrong, if anything did
-- **Runtime Evidence** - observed agent activity behind the conclusion
-- **Recommendations** - practical next steps for improvement
+- **Trust Assessment** - readiness and confidence signals
+- **Primary Diagnosis** - what deserves attention
+- **Run Review** - the observed behavior behind the report
+- **Recommendations** - practical next steps
 - **Historical Runs** - previous observations for comparison
 
 ---
@@ -80,6 +78,110 @@ critiqor help
 
 ---
 
+## Operating System Compatibility
+
+Critiqor is distributed as a Python CLI package. The package can be installed anywhere Python 3.10+ is available, but the best installation path depends on the operating system and terminal environment.
+
+| Operating system | Compatibility | Recommended install path |
+| --- | --- | --- |
+| macOS | Supported | Python 3.10+ with `pip` or `pipx` |
+| Linux | Supported | Distro Python package manager, then `pip` or `pipx` |
+| Windows | Supported with WSL recommended | WSL2 for OpenClaw workflows, or native Windows Python for basic CLI usage |
+
+### macOS
+
+**Compatibility: supported and recommended.**
+
+macOS provides a reliable terminal environment for Critiqor's OpenClaw observation workflow.
+
+```bash
+python3 --version
+python3 -m pip install critiqor
+critiqor help
+```
+
+Optional isolated install with `pipx`:
+
+```bash
+brew install pipx
+pipx install critiqor
+```
+
+Notes:
+
+- Use Python 3.10 or newer.
+- If `pip` is missing, install Python from python.org or Homebrew.
+- Make sure OpenClaw is installed and available on your `PATH` before running `critiqor monitor openclaw`.
+
+### Linux
+
+**Compatibility: supported and recommended.**
+
+Linux is a strong environment for Critiqor because terminal process handling and OpenClaw runtime workflows are typically predictable.
+
+Debian or Ubuntu setup:
+
+```bash
+sudo apt update
+sudo apt install python3 python3-pip python3-venv
+python3 -m pip install critiqor
+critiqor help
+```
+
+Fedora setup:
+
+```bash
+sudo dnf install python3 python3-pip
+python3 -m pip install critiqor
+critiqor help
+```
+
+Arch setup:
+
+```bash
+sudo pacman -S python python-pip
+python -m pip install critiqor
+critiqor help
+```
+
+Notes:
+
+- Use your distro package manager to install Python and pip first.
+- A virtual environment is recommended if your distribution restricts global Python installs.
+- Make sure OpenClaw is installed and available on your `PATH`.
+
+### Windows
+
+**Compatibility: supported, with WSL2 recommended for OpenClaw monitoring.**
+
+Critiqor can be installed on native Windows when Python 3.10+ is available. However, OpenClaw terminal/TUI behavior and child-process handling can vary across PowerShell, Command Prompt, and terminal emulators. For the most reliable Critiqor + OpenClaw workflow, use Windows Subsystem for Linux 2.
+
+Recommended WSL2 workflow:
+
+```bash
+sudo apt update
+sudo apt install python3 python3-pip python3-venv
+python3 -m pip install critiqor
+critiqor monitor openclaw
+```
+
+Native PowerShell workflow:
+
+```powershell
+py --version
+py -m pip install critiqor
+critiqor help
+```
+
+Notes:
+
+- Use WSL2 when running `critiqor monitor openclaw`.
+- Native Windows is suitable for checking the CLI, opening reports, and basic workflows.
+- If using PowerShell directly, verify OpenClaw itself runs correctly before starting Critiqor.
+- The dashboard opens in your browser after a completed run.
+
+---
+
 ## Quick Start
 
 ### 1. Start an observation session
@@ -88,11 +190,11 @@ critiqor help
 critiqor monitor openclaw
 ```
 
-Critiqor starts observing before the agent begins work, then launches OpenClaw in the same terminal.
+Critiqor starts the OpenClaw workflow and begins observing the run.
 
 ### 2. Use OpenClaw normally
 
-Work with your agent as usual. Critiqor stays in the background and records runtime evidence.
+Work with your agent as usual. Critiqor stays out of the way while the agent runs.
 
 ### 3. Finalize the observation
 
@@ -100,7 +202,7 @@ Work with your agent as usual. Critiqor stays in the background and records runt
 critiqor finalize
 ```
 
-Critiqor completes the observation, generates a reliability report, and opens the dashboard.
+Critiqor completes the observation, prepares the reliability report, and opens the dashboard.
 
 ### 4. Reopen previous runs
 
@@ -126,29 +228,25 @@ critiqor dashboard run_001
 
 ## Features
 
-### Runtime Observation
+### Terminal-First Workflow
 
-Capture what the agent actually did during execution, including tool activity, retries, runtime events, and failures.
+Start and finish agent observations directly from the Critiqor CLI.
 
-### Evidence-Backed Diagnosis
+### Reliability Reports
 
-Understand reliability issues through observed behavior rather than generated explanations after the fact.
+Review whether a run looks healthy, needs review, or should be treated with caution.
 
-### Trust Assessment
+### Dashboard Review
 
-See whether a run looks healthy, needs review, or should be treated as risky.
+Move from terminal execution to a visual report built for debugging, communication, and decision-making.
 
 ### Historical Runs
 
-Review previous observations and track whether reliability is improving over time.
+Revisit previous observations and compare reliability over time.
 
-### Cost Awareness
+### OpenClaw Support
 
-Spot repeated calls, redundant work, and signs of operational waste.
-
-### Dashboard-First Review
-
-Move from terminal execution to a visual report designed for debugging, review, and team communication.
+Critiqor currently focuses on OpenClaw-based agent workflows.
 
 ---
 
@@ -159,11 +257,11 @@ Use Critiqor when you need to:
 - validate agent changes before release
 - debug failed or suspicious runs
 - compare prompt iterations
-- test new tools or skills
-- catch regressions in agent behavior
+- review new agent tools or skills
+- catch regressions in behavior
 - measure reliability improvements over time
 - explain agent behavior to teammates or stakeholders
-- review whether an agent is ready for production workflows
+- decide whether an agent run is ready for production workflows
 
 ---
 
@@ -171,17 +269,15 @@ Use Critiqor when you need to:
 
 Critiqor is designed around explicit observation.
 
-It focuses on runtime behavior produced by the connected agent session. Developers remain in control of when observation starts, when it ends, and which results they review or share.
-
-Critiqor does **not** aim to replace developer judgment. It provides evidence-backed reliability signals so teams can make better decisions.
+Developers control when observation starts, when it ends, and which results they review or share. Critiqor provides reliability signals to support developer judgment; it does not replace tests, human review, or production monitoring.
 
 Principles:
 
 - observation should be explicit
-- conclusions should be backed by runtime evidence
-- developers should be able to review what happened
+- reports should be grounded in the observed run
+- developers should be able to review the result
 - sensitive workflow data should remain under user control
-- reliability reports should support human decision-making, not hide it
+- reliability reports should support human decision-making
 
 ---
 
@@ -195,9 +291,9 @@ That means:
 
 - evaluate observable behavior
 - prioritize evidence over self-reporting
-- make reliability explainable
+- make reliability easier to explain
 - improve through measurement
-- help developers see the execution trail behind the answer
+- help developers review the work behind the answer
 
 ---
 
@@ -205,9 +301,9 @@ That means:
 
 ### What is Critiqor?
 
-Critiqor is an AI Agent Runtime Intelligence Platform. It observes agent execution, captures runtime evidence, and helps developers diagnose reliability issues.
+Critiqor is an AI Agent Runtime Intelligence Platform. It helps developers observe agent runs and review reliability reports.
 
-### Which frameworks are supported?
+### Which workflows are supported?
 
 Critiqor currently supports OpenClaw-focused observation workflows.
 
@@ -219,11 +315,11 @@ pip install critiqor
 
 ### What does the dashboard show?
 
-The dashboard shows an executive summary, trust assessment, primary diagnosis, runtime evidence, recommendations, and historical runs.
+The dashboard shows an executive summary, trust assessment, primary diagnosis, run review, recommendations, and historical runs.
 
 ### How should I interpret trust levels?
 
-Trust levels are reliability signals based on observed runtime behavior. They help you decide whether a run looks healthy, needs review, or may be risky.
+Trust levels are reliability signals based on the observed run. They help you decide whether a run looks healthy, needs review, or may be risky.
 
 ### Can I review previous runs?
 
@@ -236,7 +332,7 @@ critiqor dashboard run_001
 
 ### Does Critiqor replace tests?
 
-No. Critiqor complements tests by showing what happened during an agent run. Use it alongside unit tests, integration tests, evals, and human review.
+No. Critiqor complements tests by helping you review how an agent behaved during a run. Use it alongside unit tests, integration tests, evals, and human review.
 
 ### How do I report bugs?
 
@@ -260,7 +356,7 @@ Useful contributions include:
 - documentation improvements
 - OpenClaw workflow feedback
 - dashboard usability feedback
-- framework integration requests
+- integration requests
 
 If you are proposing a larger change, please open an issue first so the direction can be discussed.
 
