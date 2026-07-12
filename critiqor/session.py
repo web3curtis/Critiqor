@@ -5,12 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import time
 from typing import Any
 
-from .backend import BackendConfigurationError, BackendResponseError, backend_configuration_hint, submit_evidence
+from .backend import BackendConfigurationError, BackendResponseError, submit_evidence
 from .schemas import EvidenceSubmission
+from .local_diagnosis import build_local_diagnosis
 
 IDLE = "IDLE"
 MONITORING = "MONITORING"
@@ -323,22 +325,31 @@ def finalize_session(runs_dir: str | Path = "runs") -> dict[str, Any] | None:
         session={key: value for key, value in session.items() if key != "diagnosis"},
         events=events,
     )
-    try:
-        diagnosis_result = submit_evidence(submission)
-    except (BackendConfigurationError, BackendResponseError) as exc:
-        # Keep evidence retryable, but do not strand the run in FINALIZING.
-        # A later `critiqor finalize` can resubmit the exact same evidence.
-        session["status"] = MONITORING
-        append_event(session, "error_event", {"source": "critiqor_backend", "message": str(exc)})
-        append_event(session, "state_transition", {
-            "state": MONITORING,
-            "message": "Diagnosis submission failed; evidence retained for retry",
-        })
-        write_json(paths.run_path(run_id), session)
-        write_json(paths.active_path, {"run_id": run_id, "status": MONITORING, "runs_dir": str(paths.runs_dir)})
-        raise RuntimeError(f"Diagnosis backend unavailable: {exc}. {backend_configuration_hint()}") from exc
-
-    diagnosis = diagnosis_result.to_dict()
+    hosted_configured = bool(os.environ.get("CRITIQOR_BACKEND_URL") or os.environ.get("CRITIQOR_API_KEY"))
+    if not hosted_configured:
+        diagnosis = build_local_diagnosis(
+            run_id=run_id,
+            metadata=metadata,
+            events=events,
+            session_json=str(paths.evidence_summary_path(run_id)),
+        )
+    else:
+        try:
+            diagnosis_result = submit_evidence(submission)
+        except (BackendConfigurationError, BackendResponseError) as exc:
+            append_event(session, "state_transition", {
+                "state": FINALIZING,
+                "message": f"Hosted diagnosis unavailable; generating locally ({exc})",
+            })
+            diagnosis = build_local_diagnosis(
+                run_id=run_id,
+                metadata=metadata,
+                events=events,
+                session_json=str(paths.evidence_summary_path(run_id)),
+            )
+        else:
+            diagnosis = diagnosis_result.to_dict()
+            diagnosis.setdefault("diagnosis_source", "hosted")
     diagnosis["run_id"] = run_id
     diagnosis.setdefault("raw_evidence", {})["session_json"] = str(paths.evidence_summary_path(run_id))
     write_diagnosis_artifact(runs_dir, run_id, diagnosis)
