@@ -11,3 +11,10 @@ Initial V1 release of Critiqor.
 - Added trust labels: `High`, `Moderate`, and `Low`.
 - Added support for agents with `run`, `invoke`, `generate`, or `__call__`.
 - Added README onboarding, simple usage example, sandbox experiment, and focused tests.
+# 0.2.0
+
+- Add explicit framework selection with `critiqor agents`.
+- Add saved observation-method updates with `critiqor config`.
+- Add launch monitoring for OpenClaw, Claude Code, Codex CLI, and custom frameworks.
+- Add native runtime log file/folder import and evidence normalization.
+- Keep diagnosis generation and dashboard behavior framework-agnostic.

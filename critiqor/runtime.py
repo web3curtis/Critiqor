@@ -1,4 +1,4 @@
-"""Supervised runtime operations for Critiqor OpenClaw sessions."""
+"""Supervised runtime operations for Critiqor agent sessions."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 from typing import Any
+from .frameworks import Framework
 from .openclaw import monitor_openclaw_process
 from .session import (
     abort_session,
@@ -37,6 +38,53 @@ class MonitorOpenClawOptions:
     runs_dir: str = "runs"
     openclaw_command: str = "openclaw chat"
     agent_command: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
+class MonitorFrameworkOptions:
+    framework: Framework
+    agent_id: str | None = None
+    tenant_id: str = "default"
+    visibility: str = "private"
+    benchmark_id: str = "agent_runtime_v1"
+    difficulty_tier: str = "standard"
+    cwd: str | None = None
+    timeout: float | None = None
+    runs_dir: str = "runs"
+
+
+def import_runtime_logs(source: Path, framework: Framework, runs_dir: str = "runs") -> int:
+    """Normalize external log records into a new, independent Critiqor session."""
+    files = [source] if source.is_file() else sorted(path for path in source.rglob("*") if path.is_file())
+    if not files:
+        print("No runtime log files found.")
+        return 2
+    try:
+        session = create_session(runs_dir=runs_dir, agent_id=f"{framework.slug}_import", benchmark_id="imported_runtime_v1")
+    except RuntimeError as exc:
+        print(str(exc))
+        return 1
+    run_id = str(session["run_id"])
+    imported = 0
+    for path in files:
+        try:
+            for line_number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+                if not line.strip():
+                    continue
+                try:
+                    record: Any = json.loads(line)
+                except json.JSONDecodeError:
+                    record = {"message": line}
+                append_event_to_run(runs_dir, run_id, "imported_runtime_event", {
+                    "framework": framework.slug, "source_file": str(path), "line": line_number, "record": record,
+                })
+                imported += 1
+        except OSError as exc:
+            append_event_to_run(runs_dir, run_id, "error_event", {"source": str(path), "message": str(exc)})
+    print(f"Imported {imported} runtime log records.")
+    print("Evidence normalization complete.")
+    print("Run `critiqor finalize` to generate a diagnosis report.")
+    return 0
 
 
 @dataclass(frozen=True)
@@ -204,6 +252,89 @@ class SupervisedOpenClawRuntime:
 
 def monitor_openclaw(options: MonitorOpenClawOptions) -> int:
     return SupervisedOpenClawRuntime(options).run()
+
+
+def monitor_framework(options: MonitorFrameworkOptions) -> int:
+    """Launch any configured terminal framework under the existing observer."""
+    framework = options.framework
+    active = load_active_session(options.runs_dir)
+    if active:
+        print(f"Critiqor monitoring is already active for {active['run_id']}.")
+        print("Finalize it with:\ncritiqor finalize")
+        return 1
+    command = shlex.split(framework.launch_command)
+    if not command:
+        print(f"No launch command configured for {framework.name}.")
+        print("Run `critiqor config` to update it.")
+        return 2
+    if shutil.which(command[0]) is None:
+        print(f"{framework.name} command not found: {command[0]}")
+        return 127
+    try:
+        session = create_session(
+            runs_dir=options.runs_dir,
+            agent_id=options.agent_id or f"{framework.slug}_agent",
+            tenant_id=options.tenant_id,
+            visibility=options.visibility,
+            benchmark_id=options.benchmark_id,
+            difficulty_tier=options.difficulty_tier,
+        )
+    except RuntimeError as exc:
+        print(str(exc))
+        return 1
+    run_id = str(session["run_id"])
+    print("✓ Runtime observer attached")
+    print("✓ Event collection active")
+    print(f"\nLaunching {framework.name}...")
+    append_event_to_run(options.runs_dir, run_id, "state_transition", {
+        "state": "MONITORING", "message": f"Launching {framework.name} child process",
+    })
+    process: subprocess.Popen[Any] | None = None
+    try:
+        env = os.environ.copy()
+        env.update({
+            "CRITIQOR_RUN_ID": run_id,
+            "CRITIQOR_RUNS_DIR": str(Path(options.runs_dir).resolve()),
+            "CRITIQOR_AGENT_ID": options.agent_id or f"{framework.slug}_agent",
+            "CRITIQOR_TENANT_ID": options.tenant_id,
+            "CRITIQOR_VISIBILITY": options.visibility,
+            "CRITIQOR_FRAMEWORK": framework.slug,
+            "CRITIQOR_EVENT_SOURCE": framework.slug,
+        })
+        if framework.slug == "openclaw":
+            plugin_dir = critiqor_openclaw_plugin_dir()
+            if plugin_dir.exists():
+                env["OPENCLAW_BUNDLED_PLUGINS_DIR"] = str(plugin_dir.parent)
+        process = subprocess.Popen(command, cwd=options.cwd, env=env)
+        append_event_to_run(options.runs_dir, run_id, "process_start", {
+            "command": command, "pid": process.pid, "framework": framework.slug,
+        })
+        exit_code = process.wait(timeout=options.timeout) if options.timeout else process.wait()
+        append_event_to_run(options.runs_dir, run_id, "process_end", {
+            "command": command, "pid": process.pid, "exit_code": exit_code, "framework": framework.slug,
+        })
+        if exit_code:
+            append_event_to_run(options.runs_dir, run_id, "error_event", {
+                "source": f"{framework.slug}_process", "message": f"{framework.name} exited with status {exit_code}",
+            })
+        print(f"{framework.name} session ended.")
+        print("Run `critiqor finalize` to stop monitoring and generate a diagnosis report.")
+        return int(exit_code or 0)
+    except subprocess.TimeoutExpired:
+        if process is not None:
+            process.terminate()
+        print(f"{framework.name} monitor timed out.")
+        return 124
+    except KeyboardInterrupt:
+        if process is not None and process.poll() is None:
+            process.terminate()
+        print("Monitoring process terminated intentionally.")
+        print("Run `critiqor finalize` to generate a diagnosis report.")
+        return 130
+    except OSError as exc:
+        abort_session(options.runs_dir, f"Failed to launch {framework.name}: {exc}")
+        print(f"Failed to launch {framework.name}: {exc}")
+        return 1
 
 
 def finalize_observation(options: FinalizeOptions) -> int:

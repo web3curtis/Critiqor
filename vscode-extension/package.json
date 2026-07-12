@@ -1,0 +1,21 @@
+{
+  "name": "critiqor",
+  "displayName": "Critiqor for AI Agents",
+  "description": "Configure and run Critiqor observations from VS Code or Cursor.",
+  "version": "0.1.0",
+  "publisher": "critiqor",
+  "engines": {"vscode": "^1.85.0"},
+  "categories": ["Testing", "Other"],
+  "activationEvents": [],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {"command": "critiqor.configureAgent", "title": "Critiqor: Configure Agent"},
+      {"command": "critiqor.finalize", "title": "Critiqor: Finalize Observation"},
+      {"command": "critiqor.dashboard", "title": "Critiqor: Open Dashboard"}
+    ]
+  },
+  "scripts": {"package": "vsce package"},
+  "devDependencies": {"@vscode/vsce": "^3.6.0"},
+  "license": "MIT"
+}

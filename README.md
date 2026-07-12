@@ -184,19 +184,29 @@ Notes:
 
 ## Quick Start
 
-### 1. Start an observation session
+### 1. Choose an agent framework
+
+```bash
+critiqor agents
+```
+
+Choose OpenClaw, Claude Code, Codex CLI, or configure a custom framework. Critiqor saves the observation method for future sessions and never scans your machine to detect frameworks.
+
+### 2. Start an observation session
 
 ```bash
 critiqor monitor openclaw
+# or: critiqor monitor cc
+# or: critiqor monitor codex
 ```
 
-Critiqor starts the OpenClaw workflow and begins observing the run.
+Critiqor launches the selected agent's terminal and begins observing the run. Use `critiqor config` when you want to change its saved observation method.
 
-### 2. Use OpenClaw normally
+### 3. Use your agent normally
 
 Work with your agent as usual. Critiqor stays out of the way while the agent runs.
 
-### 3. Finalize the observation
+### 4. Finalize the observation
 
 ```bash
 critiqor finalize
@@ -204,7 +214,7 @@ critiqor finalize
 
 Critiqor completes the observation, prepares the reliability report, and opens the dashboard.
 
-### 4. Reopen previous runs
+### 5. Reopen previous runs
 
 List historical evaluations:
 
@@ -244,9 +254,9 @@ Move from terminal execution to a visual report built for debugging, communicati
 
 Revisit previous observations and compare reliability over time.
 
-### OpenClaw Support
+### Multi-Agent Support
 
-Critiqor currently focuses on OpenClaw-based agent workflows.
+Launch and observe OpenClaw, Claude Code, Codex CLI, or a saved custom terminal framework. Runtime logs can also be imported independently through the native file picker.
 
 ---
 

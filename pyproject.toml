@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "critiqor"
 version = "0.2.0"
-description = "Public Critiqor client for OpenClaw runtime evidence collection."
+description = "Runtime reliability intelligence for AI agents."
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "Critiqor Contributors" }]
