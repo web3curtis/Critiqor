@@ -96,6 +96,7 @@ def create_session(
     visibility: str = "private",
     benchmark_id: str = "openclaw_runtime_v1",
     difficulty_tier: str = "standard",
+    framework: str = "openclaw",
 ) -> dict[str, Any]:
     paths = paths_for(runs_dir)
     ensure_runs_dir(paths)
@@ -116,7 +117,7 @@ def create_session(
         "metadata": {
             "agent_id": agent_id,
             "tenant_id": tenant_id,
-            "framework": "openclaw",
+            "framework": framework,
             "visibility": visibility,
             "benchmark_id": benchmark_id,
             "difficulty_tier": difficulty_tier,
@@ -325,9 +326,16 @@ def finalize_session(runs_dir: str | Path = "runs") -> dict[str, Any] | None:
     try:
         diagnosis_result = submit_evidence(submission)
     except (BackendConfigurationError, BackendResponseError) as exc:
-        session["status"] = FINALIZING
+        # Keep evidence retryable, but do not strand the run in FINALIZING.
+        # A later `critiqor finalize` can resubmit the exact same evidence.
+        session["status"] = MONITORING
         append_event(session, "error_event", {"source": "critiqor_backend", "message": str(exc)})
+        append_event(session, "state_transition", {
+            "state": MONITORING,
+            "message": "Diagnosis submission failed; evidence retained for retry",
+        })
         write_json(paths.run_path(run_id), session)
+        write_json(paths.active_path, {"run_id": run_id, "status": MONITORING, "runs_dir": str(paths.runs_dir)})
         raise RuntimeError(f"Diagnosis backend unavailable: {exc}. {backend_configuration_hint()}") from exc
 
     diagnosis = diagnosis_result.to_dict()

@@ -9,8 +9,8 @@ from pathlib import Path
 from unittest.mock import patch
 from click.testing import CliRunner
 
-from critiqor import EvidenceSubmission, OpenClawRuntimeObserver, create_session, finalize_session
-from critiqor.backend import BackendConfig, submit_evidence
+from critiqor import EvidenceSubmission, OpenClawRuntimeObserver, create_session, finalize_session, load_active_session
+from critiqor.backend import BackendConfig, BackendConfigurationError, submit_evidence
 from critiqor.cli import main as cli_main
 from critiqor.dashboard import validate_diagnosis
 from critiqor.frameworks import Framework, custom_name_error, load_config, resolve_framework, save_framework
@@ -89,6 +89,20 @@ class PublicClientTests(unittest.TestCase):
             payload = json.loads(saved.read_text())
             self.assertEqual(payload["executive_summary"]["trust_score"], 88)
             self.assertTrue(validate_diagnosis(payload))
+
+    def test_failed_backend_keeps_session_retryable_not_finalizing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            session = create_session(runs_dir=tmp, framework="codex")
+            with patch("critiqor.session.submit_evidence", side_effect=BackendConfigurationError("offline")):
+                with self.assertRaises(RuntimeError):
+                    finalize_session(tmp)
+
+            active = load_active_session(tmp)
+            self.assertIsNotNone(active)
+            self.assertEqual(active["status"], "MONITORING")
+            saved = json.loads((Path(tmp) / f"{session['run_id']}.json").read_text())
+            self.assertEqual(saved["metadata"]["framework"], "codex")
+            self.assertEqual(saved["status"], "MONITORING")
 
     def test_cli_help_is_public_client_focused(self) -> None:
         self.assertEqual(cli_main(["help"]), 0)

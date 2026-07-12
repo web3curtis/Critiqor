@@ -55,12 +55,22 @@ class MonitorFrameworkOptions:
 
 def import_runtime_logs(source: Path, framework: Framework, runs_dir: str = "runs") -> int:
     """Normalize external log records into a new, independent Critiqor session."""
+    active = load_active_session(runs_dir)
+    if active:
+        print(f"Critiqor already has an active session: {active['run_id']}.")
+        print("The existing evidence is safe. Run `critiqor finalize` before importing another log.")
+        return 1
     files = [source] if source.is_file() else sorted(path for path in source.rglob("*") if path.is_file())
     if not files:
         print("No runtime log files found.")
         return 2
     try:
-        session = create_session(runs_dir=runs_dir, agent_id=f"{framework.slug}_import", benchmark_id="imported_runtime_v1")
+        session = create_session(
+            runs_dir=runs_dir,
+            agent_id=f"{framework.slug}_import",
+            benchmark_id="imported_runtime_v1",
+            framework=framework.slug,
+        )
     except RuntimeError as exc:
         print(str(exc))
         return 1
@@ -278,6 +288,7 @@ def monitor_framework(options: MonitorFrameworkOptions) -> int:
             visibility=options.visibility,
             benchmark_id=options.benchmark_id,
             difficulty_tier=options.difficulty_tier,
+            framework=framework.slug,
         )
     except RuntimeError as exc:
         print(str(exc))
@@ -352,7 +363,8 @@ def finalize_observation(options: FinalizeOptions) -> int:
         session = finalize_session(options.runs_dir)
     except RuntimeError as exc:
         print(str(exc))
-        print("Diagnosis was not generated. Evidence remains available in the run session artifact.")
+        print("Diagnosis was not generated. Evidence remains available and the session is ready to retry.")
+        print("Configure a reachable backend, then run `critiqor finalize` again.")
         return 1
     if session is None:
         print("No active Critiqor monitoring session found.")
