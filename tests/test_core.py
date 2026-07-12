@@ -104,6 +104,22 @@ class PublicClientTests(unittest.TestCase):
             self.assertEqual(saved["metadata"]["framework"], "codex")
             self.assertEqual(saved["status"], "MONITORING")
 
+    def test_dashboard_explains_backend_failure_without_finalize_loop(self) -> None:
+        runner = CliRunner()
+        with tempfile.TemporaryDirectory() as tmp:
+            create_session(runs_dir=tmp)
+            with patch("critiqor.session.submit_evidence", side_effect=BackendConfigurationError("offline")):
+                with self.assertRaises(RuntimeError):
+                    finalize_session(tmp)
+            result = runner.invoke(
+                __import__("critiqor.cli", fromlist=["cli"]).cli,
+                ["dashboard", "--runs", tmp],
+            )
+            self.assertEqual(result.exit_code, 0)
+            self.assertIn("Latest diagnosis error: offline", result.output)
+            self.assertIn("evidence is retained", result.output)
+            self.assertNotIn("Run:\ncritiqor finalize", result.output)
+
     def test_cli_help_is_public_client_focused(self) -> None:
         self.assertEqual(cli_main(["help"]), 0)
 

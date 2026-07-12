@@ -16,7 +16,8 @@ from urllib.request import urlopen
 from urllib.parse import urlencode
 import webbrowser
 
-from .session import list_completed_runs
+from .backend import BackendConfig, backend_configuration_hint
+from .session import list_completed_runs, load_active_session, paths_for, read_json
 
 
 def serve_dashboard(
@@ -31,10 +32,7 @@ def serve_dashboard(
 
     selected_run_id = run_id or latest_diagnosis_run_id(runs_dir)
     if not selected_run_id:
-        print("Diagnosis file not found.")
-        print()
-        print("Run:")
-        print("critiqor finalize")
+        explain_missing_diagnosis(runs_dir, run_id)
         return 1
 
     diagnosis = load_diagnosis_run(runs_dir, selected_run_id)
@@ -84,6 +82,44 @@ def serve_dashboard(
 
 def diagnosis_path_for(runs_dir: str | Path, run_id: str) -> Path:
     return Path(runs_dir) / run_id / "diagnosis.json"
+
+
+def explain_missing_diagnosis(runs_dir: str | Path, requested_run_id: str | None = None) -> None:
+    """Explain why the dashboard cannot start without creating a finalize loop."""
+    root = Path(runs_dir).resolve()
+    print("No dashboard-ready diagnosis was found.")
+    print(f"Searched: {root}/run_*/diagnosis.json")
+    if requested_run_id:
+        print(f"Requested run: {requested_run_id}")
+    active = load_active_session(runs_dir)
+    if active:
+        run_id = str(active.get("run_id", "unknown"))
+        print(f"Active evidence session: {run_id} ({active.get('status', 'unknown')})")
+        run_path = paths_for(runs_dir).run_path(run_id)
+        try:
+            session = read_json(run_path)
+        except (OSError, json.JSONDecodeError):
+            session = {}
+        errors = [
+            event for event in session.get("event_log", [])
+            if isinstance(event, dict) and event.get("event") == "error_event"
+        ]
+        backend_errors = [event for event in errors if event.get("source") == "critiqor_backend"]
+        if backend_errors:
+            print(f"Latest diagnosis error: {backend_errors[-1].get('message', 'backend unavailable')}")
+            print(f"Configured backend: {BackendConfig.from_env().url}")
+            print(backend_configuration_hint())
+            print("Your evidence is retained. After the backend is reachable, run `critiqor finalize` once, then retry the dashboard.")
+            return
+        print("This run has evidence but no diagnosis yet. Run `critiqor finalize` once.")
+        return
+    completed = list_completed_runs(runs_dir)
+    if completed:
+        print("Completed session records exist, but none contain a valid diagnosis artifact.")
+        print("Inspect the run directory above or select the correct directory with `critiqor dashboard --runs PATH`.")
+        return
+    print("No active or completed sessions exist in this directory.")
+    print("If the run was created elsewhere, use `critiqor dashboard --runs PATH`.")
 
 
 def load_diagnosis_run(runs_dir: str | Path, run_id: str | None) -> dict[str, Any] | None:
