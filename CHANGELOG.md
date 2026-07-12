@@ -11,7 +11,7 @@ Initial V1 release of Critiqor.
 - Added trust labels: `High`, `Moderate`, and `Low`.
 - Added support for agents with `run`, `invoke`, `generate`, or `__call__`.
 - Added README onboarding, simple usage example, sandbox experiment, and focused tests.
-# 0.2.0
+# 0.2.1
 
 - Add explicit framework selection with `critiqor agents`.
 - Add saved observation-method updates with `critiqor config`.

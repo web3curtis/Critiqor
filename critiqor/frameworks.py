@@ -66,6 +66,21 @@ def save_framework(framework: Framework, observation_method: str, path: Path | N
     temporary.replace(destination)
 
 
+def update_framework(old_slug: str, framework: Framework, observation_method: str, path: Path | None = None) -> None:
+    """Replace a custom framework, including its configuration key after a rename."""
+    destination = path or config_path()
+    payload = load_config(destination)
+    payload["frameworks"].pop(old_slug.casefold(), None)
+    item = asdict(framework)
+    item["observation_method"] = observation_method
+    payload["frameworks"][framework.slug.casefold()] = item
+    payload["selected_framework"] = framework.slug
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_suffix(".tmp")
+    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.replace(destination)
+
+
 def configured_frameworks(path: Path | None = None) -> list[Framework]:
     result: list[Framework] = []
     for item in load_config(path)["frameworks"].values():
@@ -97,13 +112,16 @@ def resolve_framework(identifier: str, path: Path | None = None) -> tuple[Framew
     return None
 
 
-def custom_name_error(name: str, path: Path | None = None) -> str | None:
+def custom_name_error(name: str, path: Path | None = None, exclude_slug: str | None = None) -> str | None:
     normalized = " ".join(name.split()).casefold()
     if not normalized:
         return "Framework name is required."
     if normalized in RESERVED_NAMES:
         return f'"{name.strip()}" is already a reserved framework.'
-    if any(framework.name.casefold() == normalized for framework in configured_frameworks(path)):
+    if any(
+        framework.slug.casefold() != (exclude_slug or "").casefold() and framework.name.casefold() == normalized
+        for framework in configured_frameworks(path)
+    ):
         return "Framework name already exists."
     return None
 

@@ -39,7 +39,7 @@ from .runtime import (
 )
 from .frameworks import (
     Framework, OFFICIAL_FRAMEWORKS, configured_frameworks, custom_name_error,
-    custom_slug, load_config, resolve_framework, save_framework,
+    custom_slug, load_config, resolve_framework, save_framework, update_framework,
 )
 
 _COMMAND_HELP = f"""{CRITIQOR_ASCII_LOGO}
@@ -52,10 +52,19 @@ critiqor agents
 - Choose and configure an AI agent framework
 
 critiqor config
-- Change the observation method for a configured framework
+- Change an observation method or custom framework details
 
-critiqor monitor <framework>
-- Launch and observe OpenClaw, Claude Code, Codex CLI, or a custom framework
+critiqor monitor openclaw
+- Launch `openclaw chat` and begin runtime observation
+
+critiqor monitor cc
+- Launch `claude` and begin Claude Code runtime observation
+
+critiqor monitor codex
+- Launch `codex` and begin Codex CLI runtime observation
+
+critiqor monitor <custom-framework>
+- Launch the custom framework's saved command and begin runtime observation
 
 critiqor finalize
 - Stop observation session, generate diagnosis, and open the local dashboard
@@ -74,7 +83,7 @@ critiqor help
 @click.group(context_settings={"help_option_names": ["-h", "--help"]}, invoke_without_command=True, cls=BriefHelpGroup)
 @click.pass_context
 def cli(ctx: click.Context) -> None:
-    """Runtime reliability intelligence for OpenClaw agents."""
+    """Runtime reliability intelligence for AI agents."""
 
     if ctx.invoked_subcommand is None:
         click.echo(CRITIQOR_ASCII_LOGO)
@@ -180,7 +189,7 @@ def agents_command() -> int:
 
 @cli.command("config", cls=BriefHelpCommand)
 def config_command() -> int:
-    """Change a configured framework's observation method."""
+    """Change an observation method or custom framework details."""
     frameworks = list(OFFICIAL_FRAMEWORKS) + configured_frameworks()
     configured = load_config()["frameworks"]
     frameworks = [item for item in frameworks if item.slug.casefold() in configured]
@@ -188,6 +197,26 @@ def config_command() -> int:
         click.echo("No configured frameworks. Run `critiqor agents` first.")
         return 1
     framework = frameworks[_choose("Select Configured Framework", [item.name for item in frameworks])]
+    if not framework.official:
+        action = _choose("Configure Custom Framework", ["Observation Method", "Framework Details"])
+        if action == 1:
+            old_slug = framework.slug
+            while True:
+                name = click.prompt("\nFramework Name", default=framework.name).strip()
+                error = custom_name_error(name, exclude_slug=old_slug)
+                if not error:
+                    break
+                click.echo(f"\nError\n\n{error}\n\nPlease choose another name.")
+            command = click.prompt("\nLaunch Command", default=framework.launch_command or "N/A").strip()
+            updated = Framework(
+                name, custom_slug(name), "" if command.casefold() == "n/a" else command,
+                framework.runtime_environment, official=False,
+            )
+            current = resolve_framework(old_slug)
+            method = current[1] if current else "launch_command"
+            update_framework(old_slug, updated, method)
+            click.echo(f"\nConfiguration Complete.\n\nRun:\n\ncritiqor monitor {updated.name}")
+            return 0
     return _finish_configuration(framework, _observation_method())
 
 

@@ -93,6 +93,16 @@ class PublicClientTests(unittest.TestCase):
     def test_cli_help_is_public_client_focused(self) -> None:
         self.assertEqual(cli_main(["help"]), 0)
 
+    def test_help_lists_each_multi_agent_monitor_command(self) -> None:
+        runner = CliRunner()
+        result = runner.invoke(__import__("critiqor.cli", fromlist=["cli"]).cli, ["help"])
+        self.assertEqual(result.exit_code, 0)
+        for command in (
+            "critiqor agents", "critiqor config", "critiqor monitor openclaw",
+            "critiqor monitor cc", "critiqor monitor codex", "critiqor monitor <custom-framework>",
+        ):
+            self.assertIn(command, result.output)
+
     def test_framework_configuration_is_saved_and_reused(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "config.json"
@@ -139,6 +149,24 @@ class PublicClientTests(unittest.TestCase):
             result = runner.invoke(__import__("critiqor.cli", fromlist=["cli"]).cli, ["agents"], input="3\n1\n")
             self.assertEqual(result.exit_code, 0, result.output)
             self.assertIn("critiqor monitor codex", result.output)
+
+    def test_config_can_modify_custom_framework_details(self) -> None:
+        runner = CliRunner()
+        with runner.isolated_filesystem():
+            config = Path.cwd() / "config.json"
+            with patch.dict("os.environ", {"CRITIQOR_CONFIG_PATH": str(config)}):
+                save_framework(Framework("MyAgent", "myagent", "old-agent", official=False), "launch_command")
+                result = runner.invoke(
+                    __import__("critiqor.cli", fromlist=["cli"]).cli,
+                    ["config"],
+                    input="1\n2\nNewAgent\nnew-agent tui\n",
+                )
+                self.assertEqual(result.exit_code, 0, result.output)
+                self.assertIsNone(resolve_framework("MyAgent"))
+                updated = resolve_framework("NewAgent")
+                self.assertIsNotNone(updated)
+                self.assertEqual(updated[0].launch_command, "new-agent tui")
+                self.assertEqual(updated[1], "launch_command")
 
 
 if __name__ == "__main__":
