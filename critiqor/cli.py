@@ -8,6 +8,7 @@ import subprocess
 import sys
 
 from .banner import CRITIQOR_ASCII_LOGO
+from . import terminal_ui as ui
 
 
 class BriefHelpCommand(click.Command):
@@ -101,20 +102,23 @@ def help_command() -> None:
 def _choose(title: str, choices: list[str]) -> int:
     """Arrow-key menu with a numbered fallback for non-interactive input."""
     if not sys.stdin.isatty():
-        click.echo(title + "\n")
+        ui.title(title)
         for index, choice in enumerate(choices, 1):
             click.echo(f"{index}. {choice}")
         return max(0, min(len(choices) - 1, click.prompt("Select", type=int, default=1) - 1))
     selected = 0
     while True:
         click.clear()
-        click.echo(title + "\n")
+        ui.title(title)
         for index, choice in enumerate(choices):
-            click.echo(("> " if index == selected else "  ") + choice + "\n")
-        click.echo("↑ ↓ Navigate\n\nSelect via Enter")
+            ui.option(choice, selected=index == selected)
+            click.echo()
+        ui.navigation_help()
         key = click.getchar()
         if key in ("\r", "\n"):
             return selected
+        if key in ("\x1b", "\x03"):
+            raise click.Abort()
         if key in ("\x1b[A", "k"):
             selected = (selected - 1) % len(choices)
         elif key in ("\x1b[B", "j"):
@@ -127,7 +131,9 @@ def _observation_method() -> str:
 
 
 def _extension_instructions() -> None:
-    click.echo("\nInstall the Critiqor extension inside:\n\n• VS Code\n\nor\n\n• Cursor\n\nThen rerun this in your IDE:\n\ncritiqor agents")
+    ui.title("Extension Setup")
+    ui.section("Install inside", "VS Code or Cursor", icon="◉")
+    ui.command("critiqor agents", "Then rerun")
 
 
 def _pick_log() -> Path | None:
@@ -159,12 +165,17 @@ def _finish_configuration(framework: Framework, method: str) -> int:
     elif method == "import_log":
         path = _pick_log()
         if path:
-            click.echo(f"\nRuntime log selected: {path}")
+            ui.success("Runtime log selected")
+            ui.section("Log Path", str(path), icon="◈")
             return import_runtime_logs(path, framework)
         else:
-            click.echo("\nNo runtime log selected.")
+            ui.warning("No runtime log selected.")
     else:
-        click.echo(f"\nConfiguration Complete.\n\nRun:\n\ncritiqor monitor {framework.slug if framework.official else framework.name}")
+        ui.title("Configuration Complete")
+        ui.success("Framework configured")
+        ui.section("Framework", framework.name, icon="◈")
+        ui.section("Observation Method", "Launch Command", icon="◉")
+        ui.command(f"critiqor monitor {framework.slug if framework.official else framework.name}")
     return 0
 
 
@@ -181,7 +192,8 @@ def agents_command() -> int:
             error = custom_name_error(name)
             if not error:
                 break
-            click.echo(f"\nError\n\n{error}\n\nPlease choose another name.")
+            ui.error(error)
+            ui.muted("Please choose another name.")
         command = click.prompt("\nLaunch Command (N/A if none)", default="N/A").strip()
         framework = Framework(name, custom_slug(name), "" if command.casefold() == "n/a" else command, official=False)
     return _finish_configuration(framework, _observation_method())
@@ -194,7 +206,8 @@ def config_command() -> int:
     configured = load_config()["frameworks"]
     frameworks = [item for item in frameworks if item.slug.casefold() in configured]
     if not frameworks:
-        click.echo("No configured frameworks. Run `critiqor agents` first.")
+        ui.warning("No configured frameworks.")
+        ui.command("critiqor agents", "Start Here")
         return 1
     framework = frameworks[_choose("Select Configured Framework", [item.name for item in frameworks])]
     if not framework.official:
@@ -206,7 +219,8 @@ def config_command() -> int:
                 error = custom_name_error(name, exclude_slug=old_slug)
                 if not error:
                     break
-                click.echo(f"\nError\n\n{error}\n\nPlease choose another name.")
+                ui.error(error)
+                ui.muted("Please choose another name.")
             command = click.prompt("\nLaunch Command", default=framework.launch_command or "N/A").strip()
             updated = Framework(
                 name, custom_slug(name), "" if command.casefold() == "n/a" else command,
@@ -215,7 +229,11 @@ def config_command() -> int:
             current = resolve_framework(old_slug)
             method = current[1] if current else "launch_command"
             update_framework(old_slug, updated, method)
-            click.echo(f"\nConfiguration Complete.\n\nRun:\n\ncritiqor monitor {updated.name}")
+            ui.title("Configuration Complete")
+            ui.success("Framework updated")
+            ui.section("Framework", updated.name, icon="◈")
+            ui.section("Observation Method", method.replace("_", " ").title(), icon="◉")
+            ui.command(f"critiqor monitor {updated.name}")
             return 0
     return _finish_configuration(framework, _observation_method())
 
@@ -229,7 +247,8 @@ def monitor_command(framework_name: str, cwd: str | None, timeout: float | None,
     """Launch and observe a configured agent framework."""
     resolved = resolve_framework(framework_name)
     if resolved is None:
-        click.echo(f'Framework "{framework_name}" is not configured. Run `critiqor agents`.')
+        ui.error(f'Framework "{framework_name}" is not configured.')
+        ui.command("critiqor agents", "Configure First")
         return 2
     framework, method = resolved
     if method == "ide_extension":
@@ -238,7 +257,7 @@ def monitor_command(framework_name: str, cwd: str | None, timeout: float | None,
     if method == "import_log":
         path = _pick_log()
         if not path:
-            click.echo("No runtime log selected.")
+            ui.warning("No runtime log selected.")
             return 0
         return import_runtime_logs(path, framework, runs_dir)
     return monitor_framework(MonitorFrameworkOptions(framework=framework, cwd=cwd, timeout=timeout, runs_dir=runs_dir))

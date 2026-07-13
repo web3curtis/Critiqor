@@ -13,6 +13,7 @@ import sys
 from typing import Any
 from .frameworks import Framework
 from .openclaw import monitor_openclaw_process
+from . import terminal_ui as ui
 from .session import (
     abort_session,
     append_event_to_run,
@@ -57,12 +58,13 @@ def import_runtime_logs(source: Path, framework: Framework, runs_dir: str = "run
     """Normalize external log records into a new, independent Critiqor session."""
     active = load_active_session(runs_dir)
     if active:
-        print(f"Critiqor already has an active session: {active['run_id']}.")
-        print("The existing evidence is safe. Run `critiqor finalize` before importing another log.")
+        ui.warning(f"Critiqor already has an active session: {active['run_id']}.")
+        ui.muted("The existing evidence is safe.")
+        ui.command("critiqor finalize", "Finish Active Session")
         return 1
     files = [source] if source.is_file() else sorted(path for path in source.rglob("*") if path.is_file())
     if not files:
-        print("No runtime log files found.")
+        ui.error("No runtime log files found.")
         return 2
     try:
         session = create_session(
@@ -72,7 +74,7 @@ def import_runtime_logs(source: Path, framework: Framework, runs_dir: str = "run
             framework=framework.slug,
         )
     except RuntimeError as exc:
-        print(str(exc))
+        ui.error(str(exc))
         return 1
     run_id = str(session["run_id"])
     imported = 0
@@ -91,9 +93,9 @@ def import_runtime_logs(source: Path, framework: Framework, runs_dir: str = "run
                 imported += 1
         except OSError as exc:
             append_event_to_run(runs_dir, run_id, "error_event", {"source": str(path), "message": str(exc)})
-    print(f"Imported {imported} runtime log records.")
-    print("Evidence normalization complete.")
-    print("Run `critiqor finalize` to generate a diagnosis report.")
+    ui.success(f"Imported {imported} runtime log records")
+    ui.success("Evidence normalization complete")
+    ui.command("critiqor finalize")
     return 0
 
 
@@ -141,18 +143,17 @@ class SupervisedOpenClawRuntime:
 
         active = load_active_session(self.options.runs_dir)
         if active:
-            print(f"Critiqor monitoring is already active for {active['run_id']}.")
-            print("Finalize it with:")
-            print("critiqor finalize")
+            ui.warning(f"Critiqor monitoring is already active for {active['run_id']}.")
+            ui.command("critiqor finalize", "Finalize It With")
             return 1
 
         launch_command = parse_openclaw_command(self.options.openclaw_command)
         if not launch_command:
-            print("OpenClaw launch command is empty.")
+            ui.error("OpenClaw launch command is empty.")
             return 2
         if shutil.which(launch_command[0]) is None:
-            print(f"OpenClaw command not found: {launch_command[0]}")
-            print("Install OpenClaw or pass --openclaw-command with the correct executable path.")
+            ui.error(f"OpenClaw command not found: {launch_command[0]}")
+            ui.muted("Install OpenClaw or pass --openclaw-command with the correct executable path.")
             return 127
 
         try:
@@ -163,17 +164,19 @@ class SupervisedOpenClawRuntime:
                 visibility=self.options.visibility,
                 benchmark_id=self.options.benchmark_id,
                 difficulty_tier=self.options.difficulty_tier,
-            )
+        )
         except RuntimeError as exc:
-            print(str(exc))
+            ui.error(str(exc))
             return 1
 
         run_id = str(session["run_id"])
-        print("✓ OpenClaw detected")
-        print("✓ Runtime observer attached")
-        print("✓ Event collection active")
-        print()
-        print("Launching OpenClaw...")
+        ui.title("Observation Started")
+        ui.success("OpenClaw detected")
+        ui.success("Runtime observer attached")
+        ui.success("Event collection active")
+        ui.section("Run", run_id, icon="◈")
+        ui.section("Framework", "OpenClaw", icon="◉")
+        ui.muted("Launching OpenClaw...")
 
         env = openclaw_environment(self.options, run_id)
         append_event_to_run(
@@ -212,8 +215,8 @@ class SupervisedOpenClawRuntime:
                     "error_event",
                     {"source": "openclaw_process", "message": f"OpenClaw exited with status {exit_code}"},
                 )
-            print("OpenClaw session ended.")
-            print("Run `critiqor finalize` to stop monitoring and generate a diagnosis report.")
+            ui.success("OpenClaw session ended")
+            ui.command("critiqor finalize")
             return int(exit_code) if exit_code else 0
         except subprocess.TimeoutExpired:
             if process is not None:
@@ -239,8 +242,8 @@ class SupervisedOpenClawRuntime:
                     "process_end",
                     {"command": launch_command, "pid": process.pid, "exit_code": -1, "framework": "openclaw"},
                 )
-            print("OpenClaw monitor timed out.")
-            print("Run `critiqor finalize` to generate a diagnosis report from collected evidence.")
+            ui.warning("OpenClaw monitor timed out.")
+            ui.command("critiqor finalize")
             return 124
         except KeyboardInterrupt:
             if process is not None and process.poll() is None:
@@ -251,12 +254,12 @@ class SupervisedOpenClawRuntime:
                     "error_event",
                     {"source": "critiqor_monitor", "message": "Monitoring process terminated intentionally"},
                 )
-            print("Monitoring process terminated intentionally.")
-            print("Run `critiqor finalize` to generate a diagnosis report from collected evidence.")
+            ui.warning("Monitoring process terminated intentionally.")
+            ui.command("critiqor finalize")
             return 130
         except OSError as exc:
             abort_session(self.options.runs_dir, f"Failed to launch OpenClaw: {exc}")
-            print(f"Failed to launch OpenClaw: {exc}")
+            ui.error(f"Failed to launch OpenClaw: {exc}")
             return 1
 
 
@@ -269,16 +272,16 @@ def monitor_framework(options: MonitorFrameworkOptions) -> int:
     framework = options.framework
     active = load_active_session(options.runs_dir)
     if active:
-        print(f"Critiqor monitoring is already active for {active['run_id']}.")
-        print("Finalize it with:\ncritiqor finalize")
+        ui.warning(f"Critiqor monitoring is already active for {active['run_id']}.")
+        ui.command("critiqor finalize", "Finalize It With")
         return 1
     command = shlex.split(framework.launch_command)
     if not command:
-        print(f"No launch command configured for {framework.name}.")
-        print("Run `critiqor config` to update it.")
+        ui.error(f"No launch command configured for {framework.name}.")
+        ui.command("critiqor config", "Update Configuration")
         return 2
     if shutil.which(command[0]) is None:
-        print(f"{framework.name} command not found: {command[0]}")
+        ui.error(f"{framework.name} command not found: {command[0]}")
         return 127
     try:
         session = create_session(
@@ -289,14 +292,17 @@ def monitor_framework(options: MonitorFrameworkOptions) -> int:
             benchmark_id=options.benchmark_id,
             difficulty_tier=options.difficulty_tier,
             framework=framework.slug,
-        )
+    )
     except RuntimeError as exc:
-        print(str(exc))
+        ui.error(str(exc))
         return 1
     run_id = str(session["run_id"])
-    print("✓ Runtime observer attached")
-    print("✓ Event collection active")
-    print(f"\nLaunching {framework.name}...")
+    ui.title("Observation Started")
+    ui.success("Runtime observer attached")
+    ui.success("Event collection active")
+    ui.section("Run", run_id, icon="◈")
+    ui.section("Framework", framework.name, icon="◉")
+    ui.muted(f"Launching {framework.name}...")
     append_event_to_run(options.runs_dir, run_id, "state_transition", {
         "state": "MONITORING", "message": f"Launching {framework.name} child process",
     })
@@ -328,69 +334,70 @@ def monitor_framework(options: MonitorFrameworkOptions) -> int:
             append_event_to_run(options.runs_dir, run_id, "error_event", {
                 "source": f"{framework.slug}_process", "message": f"{framework.name} exited with status {exit_code}",
             })
-        print(f"{framework.name} session ended.")
-        print("Run `critiqor finalize` to stop monitoring and generate a diagnosis report.")
+        ui.success(f"{framework.name} session ended")
+        ui.command("critiqor finalize")
         return int(exit_code or 0)
     except subprocess.TimeoutExpired:
         if process is not None:
             process.terminate()
-        print(f"{framework.name} monitor timed out.")
+        ui.warning(f"{framework.name} monitor timed out.")
         return 124
     except KeyboardInterrupt:
         if process is not None and process.poll() is None:
             process.terminate()
-        print("Monitoring process terminated intentionally.")
-        print("Run `critiqor finalize` to generate a diagnosis report.")
+        ui.warning("Monitoring process terminated intentionally.")
+        ui.command("critiqor finalize")
         return 130
     except OSError as exc:
         abort_session(options.runs_dir, f"Failed to launch {framework.name}: {exc}")
-        print(f"Failed to launch {framework.name}: {exc}")
+        ui.error(f"Failed to launch {framework.name}: {exc}")
         return 1
 
 
 def finalize_observation(options: FinalizeOptions) -> int:
     active = load_active_session(options.runs_dir)
     if not active:
-        print("No active Critiqor monitoring session found.")
-        print("Start one with:")
-        print("critiqor monitor openclaw")
+        ui.warning("No active Critiqor monitoring session found.")
+        ui.command("critiqor monitor openclaw", "Start One With")
         return 0
 
-    print("Stopping observer...")
-    print("Finalizing evidence...")
-    print("Generating diagnosis...")
+    ui.title("Finalizing Observation")
+    ui.success("Stopping observer")
+    ui.success("Finalizing evidence")
+    ui.success("Generating diagnosis")
     try:
         session = finalize_session(options.runs_dir)
     except RuntimeError as exc:
-        print(str(exc))
-        print("Diagnosis was not generated. Evidence remains available and the session is ready to retry.")
-        print("Configure a reachable backend, then run `critiqor finalize` again.")
+        ui.error(str(exc))
+        ui.warning("Diagnosis was not generated.")
+        ui.muted("Evidence remains available and the session is ready to retry.")
+        ui.command("critiqor finalize", "Retry")
         return 1
     if session is None:
-        print("No active Critiqor monitoring session found.")
-        print("Start one with:")
-        print("critiqor monitor openclaw")
+        ui.warning("No active Critiqor monitoring session found.")
+        ui.command("critiqor monitor openclaw", "Start One With")
         return 0
     run_id = str(session["run_id"])
     diagnosis_path = diagnosis_artifact_path(options.runs_dir, run_id)
-    print(f"Diagnosis saved: {diagnosis_path}")
+    ui.section("Run", run_id, icon="◈")
+    ui.section("Diagnosis Artifact", str(diagnosis_path), icon="◉")
     if options.no_dashboard:
+        ui.success("Diagnosis saved")
         return 0
     if not diagnosis_path.exists():
-        print("Diagnosis file not found.")
-        print()
-        print("Run:")
-        print("critiqor finalize")
+        ui.error("Diagnosis file not found.")
+        ui.command("critiqor finalize", "Run")
         return 1
 
     from .dashboard import load_diagnosis_run, validate_diagnosis
 
     diagnosis = load_diagnosis_run(options.runs_dir, run_id)
     if not validate_diagnosis(diagnosis):
-        print("Diagnosis file invalid. Dashboard launch aborted.")
+        ui.error("Diagnosis file invalid. Dashboard launch aborted.")
         return 1
 
-    print("Starting local dashboard...")
+    ui.success("Diagnosis saved")
+    ui.muted("Starting local dashboard...")
     return serve_local_dashboard(DashboardOptions(runs=options.runs_dir, host=options.host, port=options.port, run_id=run_id))
 
 
@@ -412,14 +419,12 @@ def list_runs(options: RunsOptions) -> int:
 
     runs = [run for run in list_diagnosis_runs(options.runs_dir) if validate_diagnosis(run)]
     if not runs:
-        print("No completed Critiqor evaluations found.")
-        print("Run:")
-        print("critiqor finalize")
+        ui.warning("No completed Critiqor evaluations found.")
+        ui.command("critiqor finalize", "Run")
         return 0
-    print("Available Runs")
-    print()
+    ui.title("Available Runs")
     for run in reversed(runs):
-        print(run_summary_line(run))
+        ui.line(run_summary_line(run))
     return 0
 
 

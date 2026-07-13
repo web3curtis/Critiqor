@@ -351,7 +351,10 @@ def finalize_session(runs_dir: str | Path = "runs") -> dict[str, Any] | None:
             diagnosis = diagnosis_result.to_dict()
             diagnosis.setdefault("diagnosis_source", "hosted")
     diagnosis["run_id"] = run_id
-    diagnosis.setdefault("raw_evidence", {})["session_json"] = str(paths.evidence_summary_path(run_id))
+    raw_evidence = diagnosis.setdefault("raw_evidence", {})
+    if isinstance(raw_evidence, dict):
+        raw_evidence["session_json"] = str(paths.evidence_summary_path(run_id))
+        raw_evidence["diagnosis_json"] = str(paths.diagnosis_path(run_id))
     write_diagnosis_artifact(runs_dir, run_id, diagnosis)
     finalized_at = utc_now()
     summary = diagnosis.get("executive_summary") if isinstance(diagnosis.get("executive_summary"), dict) else {}
