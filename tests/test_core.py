@@ -6,10 +6,10 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 from click.testing import CliRunner
 
-from critiqor import EvidenceSubmission, OpenClawRuntimeObserver, create_session, finalize_session, load_active_session
+from critiqor import DiagnosisResult, EvidenceSubmission, OpenClawRuntimeObserver, create_session, finalize_session, load_active_session
 from critiqor.backend import BackendConfig, BackendConfigurationError, submit_evidence
 from critiqor.cli import main as cli_main
 from critiqor.dashboard import validate_diagnosis
@@ -78,102 +78,34 @@ class PublicClientTests(unittest.TestCase):
                 "primary_diagnosis": {"root_cause_failure_type": "backend_generated"},
                 "evidence_panel": {"causal_graph": {"nodes": [], "edges": []}},
             }
-            with patch.dict("os.environ", {"CRITIQOR_BACKEND_URL": "https://backend.example/v1/diagnoses"}), patch("critiqor.session.submit_evidence") as mocked:
-                mocked.return_value.to_dict.return_value = dict(diagnosis)
+            engine = Mock()
+            engine.generate.return_value = DiagnosisResult(run_id, diagnosis)
+            with patch("critiqor.session.resolve_diagnosis_engine", return_value=engine):
                 finalized = finalize_session(tmp)
 
             self.assertIsNotNone(finalized)
-            mocked.assert_called_once()
+            engine.generate.assert_called_once()
             saved = Path(tmp) / run_id / "diagnosis.json"
             self.assertTrue(saved.exists())
             payload = json.loads(saved.read_text())
             self.assertEqual(payload["executive_summary"]["trust_score"], 88)
             self.assertTrue(validate_diagnosis(payload))
 
-    def test_unavailable_backend_generates_local_dashboard_diagnosis(self) -> None:
+    def test_unavailable_engine_keeps_session_retryable_without_public_fallback(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             session = create_session(runs_dir=tmp, framework="codex")
-            with patch.dict("os.environ", {"CRITIQOR_BACKEND_URL": "https://offline.example"}), patch(
-                "critiqor.session.submit_evidence", side_effect=BackendConfigurationError("offline")
-            ):
-                finalized = finalize_session(tmp)
+            engine = Mock()
+            engine.generate.side_effect = BackendConfigurationError("offline")
+            with patch("critiqor.session.resolve_diagnosis_engine", return_value=engine):
+                with self.assertRaises(BackendConfigurationError):
+                    finalize_session(tmp)
 
             active = load_active_session(tmp)
-            self.assertIsNone(active)
+            self.assertIsNotNone(active)
             saved = json.loads((Path(tmp) / f"{session['run_id']}.json").read_text())
             self.assertEqual(saved["metadata"]["framework"], "codex")
-            self.assertEqual(saved["status"], "COMPLETED")
-            self.assertEqual(finalized["diagnosis"]["diagnosis_source"], "local")
-            diagnosis = json.loads((Path(tmp) / session["run_id"] / "diagnosis.json").read_text())
-            self.assertTrue(validate_diagnosis(diagnosis))
-            self.assertEqual(diagnosis["framework"], "codex")
-            self.assertIn("trace", diagnosis["evidence_panel"])
-
-    def test_local_diagnosis_preserves_session_evidence_for_dashboard(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            session = create_session(runs_dir=tmp)
-            from critiqor.session import append_event_to_run
-            append_event_to_run(tmp, session["run_id"], "tool_call", {"tool": "bash"})
-            with patch.dict("os.environ", {"CRITIQOR_BACKEND_URL": "https://offline.example"}), patch(
-                "critiqor.session.submit_evidence", side_effect=BackendConfigurationError("offline")
-            ):
-                finalize_session(tmp)
-            diagnosis = json.loads((Path(tmp) / session["run_id"] / "diagnosis.json").read_text())
-            self.assertEqual(len(diagnosis["evidence_panel"]["tool_calls"]), 1)
+            self.assertEqual(saved["status"], "FINALIZING")
             self.assertTrue((Path(tmp) / session["run_id"] / "session.json").exists())
-            self.assertEqual(diagnosis["schema_version"], "critiqor.diagnosis.v1")
-            self.assertEqual(diagnosis["raw_evidence"]["diagnosis_json"], str(Path(tmp) / session["run_id"] / "diagnosis.json"))
-            self.assertEqual(diagnosis["raw_evidence"]["session_json"], str(Path(tmp) / session["run_id"] / "session.json"))
-            self.assertEqual(diagnosis["primary_diagnosis"]["root_cause_failure_type"], None)
-            self.assertEqual(diagnosis["failure_analysis"]["failure_causes"], [])
-
-    def test_local_diagnosis_failure_causes_match_core_engine_dashboard_contract(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            session = create_session(runs_dir=tmp)
-            from critiqor.session import append_event_to_run
-            append_event_to_run(tmp, session["run_id"], "error_event", {
-                "message": "Tool timed out",
-                "status": "failed",
-            })
-            finalize_session(tmp)
-
-            diagnosis = json.loads((Path(tmp) / session["run_id"] / "diagnosis.json").read_text())
-            causes = diagnosis["failure_analysis"]["failure_causes"]
-
-            self.assertEqual(len(causes), 1)
-            self.assertEqual(causes[0]["type"], "error_event")
-            self.assertEqual(causes[0]["description"], "Tool timed out")
-            self.assertGreater(causes[0]["impact"], 0)
-            self.assertIn("evidence", causes[0])
-            self.assertIn("recommendations", causes[0])
-            self.assertEqual(causes[0]["failure_type"], "error_event")
-
-    def test_internal_backend_errors_do_not_become_dashboard_findings(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            session = create_session(runs_dir=tmp)
-            from critiqor.session import append_event_to_run
-            append_event_to_run(tmp, session["run_id"], "error_event", {
-                "source": "critiqor_backend",
-                "message": "Diagnosis backend unavailable",
-            })
-            finalize_session(tmp)
-
-            diagnosis = json.loads((Path(tmp) / session["run_id"] / "diagnosis.json").read_text())
-            session_artifact = json.loads((Path(tmp) / session["run_id"] / "session.json").read_text())
-
-            self.assertTrue(any(event.get("event") == "error_event" for event in session_artifact["events"]))
-            self.assertFalse(any(event.get("event") == "error_event" for event in diagnosis["evidence_panel"]["trace"]))
-            self.assertEqual(diagnosis["failure_analysis"]["failure_causes"], [])
-
-    def test_default_finalize_is_local_and_requires_no_backend_configuration(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp, patch.dict(
-            "os.environ", {"CRITIQOR_BACKEND_URL": "", "CRITIQOR_API_KEY": ""}
-        ), patch("critiqor.session.submit_evidence") as submit:
-            session = create_session(runs_dir=tmp)
-            finalized = finalize_session(tmp)
-            submit.assert_not_called()
-            self.assertEqual(finalized["diagnosis"]["diagnosis_source"], "local")
-            self.assertTrue((Path(tmp) / session["run_id"] / "diagnosis.json").exists())
 
     def test_cli_help_is_public_client_focused(self) -> None:
         self.assertEqual(cli_main(["help"]), 0)

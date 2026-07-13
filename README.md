@@ -356,6 +356,26 @@ Open a GitHub issue with:
 
 ---
 
+## Architecture boundary
+
+This repository contains the open-source Critiqor SDK, CLI, runtime observers,
+framework integrations, schemas, dashboard integration, and extension surfaces.
+Diagnosis generation is accessed through the public `DiagnosisEngine` contract;
+public installations use Critiqor's hosted engine without changing the CLI
+workflow.
+
+Critiqor's proprietary diagnosis, scoring, causal-analysis, recommendation, and
+reliability intelligence is maintained separately in the private
+[`web3curtis/critiqor-infra`](https://github.com/web3curtis/critiqor-infra)
+repository. Access is restricted to authorized company collaborators. Internal
+builds can install that package as a `critiqor.diagnosis_engines` plugin while
+using the same public commands and diagnosis schema.
+
+See the [architecture separation audit](docs/public-package-audit.md) for the
+complete file classification and package-boundary rationale.
+
+---
+
 ## Contributing
 
 Critiqor is early and evolving quickly.

@@ -1,62 +1,103 @@
-# Critiqor Public Package Boundary Audit
+# Critiqor Architecture Separation Audit
 
-## Goal
+Audit date: 2026-07-13
+Scope: the complete current `Critiqor` working tree, including tracked source,
+untracked source, generated distributions, caches, and runtime artifacts.
 
-The public PyPI package must let users run Critiqor while ensuring proprietary diagnosis, scoring, reliability, benchmark, root-cause, and leaderboard logic is not distributed.
+The governing rule is that integration, observation, transport, schemas, CLI,
+dashboard presentation, and extension surfaces stay public. Any implementation
+that computes a diagnosis, score, causal explanation, benchmark, or
+recommendation is private. The data types and callable boundary between those
+areas stay public.
 
-## Classification
+## PUBLIC
 
-| Path | Classification | Reason |
-| --- | --- | --- |
-| `critiqor/cli.py` | Public | Command routing only. Parses CLI input and calls public runtime functions. |
-| `critiqor/runtime.py` | Public | Supervises OpenClaw process, creates sessions, persists evidence, calls private backend, launches dashboard. |
-| `critiqor/session.py` | Public | Session lifecycle and evidence artifact persistence. No local scoring after refactor. |
-| `critiqor/openclaw.py` | Public | Evidence collection primitives only. No local diagnosis or benchmark logic. |
-| `critiqor/backend.py` | Public | HTTP client for private Critiqor diagnosis backend. Contains transport only. |
-| `critiqor/schemas.py` | Public | Stable public schemas for events and backend submissions. |
-| `critiqor/dashboard.py` | Public | Local dashboard launcher and diagnosis artifact reader. Does not compute scores. |
-| `critiqor/banner.py` | Public | CLI branding. |
-| `critiqor/clawhub/critiqor-openclaw/*` | Public | Lightweight OpenClaw evidence plugin. Does not evaluate or score. |
-| former `critiqor/core.py` | Private | Legacy generic evaluator, scoring, failure detectors, benchmark and certification logic. Removed from public package and should live only in a private backend repo/service. |
-| former `critiqor/platform.py` | Private | Hosted index, ingestion, analytics, leaderboard, benchmark distribution and dashboard data generation. Removed from public package and should live only in a private backend repo/service. |
-| former local OpenClaw diagnosis implementation | Private | OpenClaw diagnosis engine, failure taxonomy detectors, scoring, causal graph and benchmark logic. Removed from public package and should live only in a private backend repo/service. |
-| `experiments/sandbox_eval.py` | Private | Experimental evaluation logic. Must not ship. |
-| `tests/*` | Private/Internal | Internal tests can reference private implementation history. Not included in PyPI sdist/wheel. |
-| `runs/*`, `.critiqor/*`, `critiqor-test/*` | Private/User Data | Local runtime artifacts and generated reports. Must never ship. |
-| `clawhub/critiqor-openclaw/reports/*` | Private/Internal | Plugin inspection reports. Must not ship. |
+| Path | Reason |
+| --- | --- |
+| `.gitignore` | Public repository hygiene; prevents generated and sensitive runtime artifacts from being committed. |
+| `LICENSE` | Public licensing metadata. The private repository must use its own proprietary license. |
+| `README.md`, `CHANGELOG.md` | Public installation, workflow, compatibility, and release documentation. |
+| `pyproject.toml`, `MANIFEST.in` | Public package build metadata and distribution allow/exclude rules. |
+| `assets/Critiqor.png`, `assets/CritiqorOpenClawBanner.png`, `assets/dashboard-preview.png` | Public branding and documentation imagery; no reliability intelligence. |
+| `critiqor/__init__.py` | Public SDK export surface. It must export contracts and client/runtime primitives only. |
+| `critiqor/banner.py`, `critiqor/terminal_ui.py` | Public terminal presentation. |
+| `critiqor/cli.py` | Public CLI command and UX orchestration. It must call the engine contract, never an implementation. |
+| `critiqor/frameworks.py` | Public framework discovery/configuration and extension metadata. |
+| `critiqor/runtime.py` | Public process supervision, log import, observation, dashboard orchestration, and export workflows. |
+| `critiqor/openclaw.py` | Public OpenClaw process observation and event normalization. It contains no diagnosis decisions. |
+| `critiqor/backend.py` | Public HTTP transport adapter for the hosted private engine. It contains no diagnosis decisions. |
+| `critiqor/dashboard.py` | Public dashboard launcher and diagnosis artifact reader. UI/presentation remains public; it must not compute diagnosis fields. |
+| `critiqor/session.py` | Public session lifecycle and artifact persistence after its direct private implementation import is removed. |
+| `clawhub/critiqor-openclaw/index.js`, `openclaw.plugin.json`, `package.json` | Public standalone OpenClaw evidence collector/plugin. |
+| `critiqor/clawhub/critiqor-openclaw/index.js`, `openclaw.plugin.json`, `package.json` | Public packaged mirror of the OpenClaw evidence plugin required by the PyPI artifact. |
+| `vscode-extension/.vscodeignore`, `README.md`, `extension.js`, `package.json` | Public IDE integration and evidence collection. |
+| `docs/pypi-release-0.2.1.md` | Public release procedure/documentation; no algorithms. |
+| `demo.py`, `examples/simple_usage.py` | Public developer examples. They exercise integration APIs rather than private intelligence. |
+| `tests/test_core.py` | Public-package behavior/contract tests after proprietary expected values and formulas are removed. Tests are excluded from wheels but can remain public for contributor confidence. |
 
-## Modules Removed From The Public PyPI Package
+## PRIVATE
 
-The following modules were removed from `critiqor/` or excluded from the distribution:
+| Path | Reason |
+| --- | --- |
+| `critiqor/local_diagnosis.py` | **Move.** Implements error/retry heuristics, trust and confidence formulas, impact/severity weighting, root-cause and recommendation generation, evidence-level inference, causal graph assembly, and diagnosis assembly. This is precisely Critiqor's proprietary intelligence. |
+| `experiments/sandbox_eval.py` | **Move.** Internal evaluator experiment that describes evaluation dimensions, scoring, confidence, findings, and deployment recommendations; it is not a functioning public SDK example against the current exports. |
+| Historical `critiqor/core.py` | Keep only in private history/repository. It implemented generic evaluation, scoring, failure detection, benchmarks, and certification logic. |
+| Historical `critiqor/platform.py` | Keep only in private history/repository. It implemented ingestion analytics, leaderboards, benchmark distribution, and hosted dashboard data generation. |
+| Historical local OpenClaw diagnosis functions (`diagnose_openclaw_events`, `build_openclaw_run_payload`, `build_openclaw_causal_graph`, `default_openclaw_benchmark_spec`) | Keep only in private history/repository. These expose failure detectors, scoring weights, readiness rules, causal analysis, and cost heuristics. |
+| `runs/active_session.json`, `runs/run_001.json`, `runs/run_001/session.json`, `runs/run_001/diagnosis.json` (when present) | User/runtime data. Never source-controlled or distributed. These are private to the user, not private-engine source. |
+| `clawhub/*/reports/` (when present) | Internal generated inspection/evaluation reports; excluded from distributions. |
 
-- `critiqor.core` -> moved to `private_backend/core.py`
-- `critiqor.platform` -> moved to `private_backend/platform.py`
-- local OpenClaw diagnosis functions from `critiqor.openclaw` -> copied to `private_backend/openclaw_engine.py`
-- `diagnose_openclaw_events`
-- `build_openclaw_run_payload`
-- `build_openclaw_causal_graph`
-- `default_openclaw_benchmark_spec`
-- local failure detectors, scoring weights, readiness rules, and cost analysis heuristics
-- local leaderboard, analytics, certification, trend, and benchmark implementation
+## INTERFACES
 
-## New Package Boundary
+These remain in the public repository because they define the stable boundary
+without exposing implementation details.
+
+| Path/symbol | Reason |
+| --- | --- |
+| `critiqor/schemas.py`: `RuntimeEvent`, `EvidenceSubmission`, `DiagnosisResult`, schema version strings | Shared request/result contracts used by integrations, the public client, private package, and hosted service. |
+| New `critiqor/engine.py`: `DiagnosisEngine` protocol and engine resolver | Stable `generate(submission) -> DiagnosisResult` interface plus plugin/hosted-adapter selection. It contains no algorithm. |
+| `critiqor/backend.py`: `BackendConfig`, public exceptions, hosted transport adapter | Stable remote implementation boundary. HTTP serialization is public; server intelligence is private. |
+| Diagnosis JSON schema consumed by `critiqor/dashboard.py`, exports, and tests | Shared output contract. Field names and structure remain backward compatible while values are produced privately. |
+| OpenClaw/IDE normalized event schema and plugin hook names | Shared evidence contract between public collectors and the private diagnosis engine. |
+
+## GENERATED / DERIVED (DO NOT CLASSIFY AS SOURCE)
+
+| Path | Treatment |
+| --- | --- |
+| `.git/` | Public repository metadata, not shipped as package content. Existing history may retain old proprietary code; removing it from the current tree does not erase history. A history rewrite is a separate, destructive security/release decision. |
+| `critiqor.egg-info/*` | Generated packaging metadata. Rebuild after separation; do not hand-maintain or commit. |
+| `dist/critiqor-0.2.1-py3-none-any.whl`, `dist/critiqor-0.2.1.tar.gz` | Existing public release artifacts containing a snapshot of older code. Replace/revoke as part of release operations; never treat them as editable source. |
+| `critiqor/__pycache__/*`, `tests/__pycache__/*`, `.pytest_cache/` | Generated caches; exclude from source and packages. |
+
+## Required boundary and compatibility decision
+
+The public workflow remains:
 
 ```text
-User
-  -> public critiqor CLI
-  -> OpenClaw runtime observer
-  -> runs/<run_id>/session.json
-  -> private Critiqor backend API
-  -> runs/<run_id>/diagnosis.json
-  -> local dashboard launcher
+pip install critiqor
+  -> critiqor agents
+  -> critiqor monitor <framework>
+  -> public observation/session artifact
+  -> DiagnosisEngine public contract
+       -> installed private plugin (internal builds), or
+       -> hosted Critiqor HTTP adapter (public installs)
+  -> unchanged diagnosis.json contract
+  -> unchanged dashboard/export workflow
 ```
 
-The public client sends evidence to the configured backend using `CRITIQOR_BACKEND_URL` and optional `CRITIQOR_API_KEY`. The backend returns dashboard-ready `diagnosis.json`.
+An entry-point/plugin contract plus hosted fallback best preserves the UX. It
+lets internal/offline builds install the proprietary implementation while the
+public PyPI package transparently uses the hosted engine. The public package
+must never fall back to a local heuristic implementation.
 
-## Packaging Controls
+## Separation gate
 
-`MANIFEST.in` prunes tests, local run artifacts, experiments, generated plugin reports, and any local `private_backend/` working copy from source distributions. `setuptools` only packages the `critiqor` public client package.
+This audit is complete before source movement begins. The implementation phase
+must satisfy all of the following:
 
-## Failure Mode
-
-If no backend is configured or reachable, `critiqor finalize` does not run local proprietary logic. It prints a backend configuration error and leaves collected evidence available in the run artifact.
+1. Remove `critiqor.local_diagnosis` and every direct import of it from public source.
+2. Add the public `DiagnosisEngine` contract and route finalization through it.
+3. Place the moved implementation in a separately initialized, proprietary-licensed `critiqor-infra` repository.
+4. Preserve evidence and diagnosis schema versions and CLI command names.
+5. Build and inspect both wheel and sdist to prove private modules, tests, experiments, runs, and caches are absent.
+6. Test hosted transport and an injected/private engine through the same contract.

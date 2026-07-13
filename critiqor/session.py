@@ -5,14 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
-import os
 from pathlib import Path
 import time
 from typing import Any
 
-from .backend import BackendConfigurationError, BackendResponseError, submit_evidence
+from .engine import resolve_diagnosis_engine
 from .schemas import EvidenceSubmission
-from .local_diagnosis import build_local_diagnosis
 
 IDLE = "IDLE"
 MONITORING = "MONITORING"
@@ -325,31 +323,8 @@ def finalize_session(runs_dir: str | Path = "runs") -> dict[str, Any] | None:
         session={key: value for key, value in session.items() if key != "diagnosis"},
         events=events,
     )
-    hosted_configured = bool(os.environ.get("CRITIQOR_BACKEND_URL") or os.environ.get("CRITIQOR_API_KEY"))
-    if not hosted_configured:
-        diagnosis = build_local_diagnosis(
-            run_id=run_id,
-            metadata=metadata,
-            events=events,
-            session_json=str(paths.evidence_summary_path(run_id)),
-        )
-    else:
-        try:
-            diagnosis_result = submit_evidence(submission)
-        except (BackendConfigurationError, BackendResponseError) as exc:
-            append_event(session, "state_transition", {
-                "state": FINALIZING,
-                "message": f"Hosted diagnosis unavailable; generating locally ({exc})",
-            })
-            diagnosis = build_local_diagnosis(
-                run_id=run_id,
-                metadata=metadata,
-                events=events,
-                session_json=str(paths.evidence_summary_path(run_id)),
-            )
-        else:
-            diagnosis = diagnosis_result.to_dict()
-            diagnosis.setdefault("diagnosis_source", "hosted")
+    diagnosis = resolve_diagnosis_engine().generate(submission).to_dict()
+    diagnosis.setdefault("diagnosis_source", "hosted")
     diagnosis["run_id"] = run_id
     raw_evidence = diagnosis.setdefault("raw_evidence", {})
     if isinstance(raw_evidence, dict):

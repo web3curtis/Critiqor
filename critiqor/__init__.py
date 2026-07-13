@@ -14,6 +14,7 @@ from .backend import (
     backend_configuration_hint,
     submit_evidence,
 )
+from .engine import DiagnosisEngine, HostedDiagnosisEngine, resolve_diagnosis_engine
 from .openclaw import (
     OpenClawRuntimeObserver,
     capture_process_stream,
@@ -53,12 +54,14 @@ __all__ = [
     "COMPLETED",
     "DEFAULT_BACKEND_URL",
     "DiagnosisResult",
+    "DiagnosisEngine",
     "EvidenceLevel",
     "EvidenceSubmission",
     "FINALIZING",
     "IDLE",
     "MONITORING",
     "OPENCLAW_EVENT_TYPES",
+    "HostedDiagnosisEngine",
     "OpenClawRuntimeObserver",
     "RuntimeEvent",
     "SessionPaths",
@@ -75,5 +78,6 @@ __all__ = [
     "monitor_openclaw_process",
     "parse_process_line",
     "paths_for",
+    "resolve_diagnosis_engine",
     "submit_evidence",
 ]
