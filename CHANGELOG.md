@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.2 - 2026-07-13
+
+- Restore offline finalization without requiring a backend URL or API key.
+- Preserve private diagnosis plugins as the preferred in-process engine.
+- Fall back to a portable dashboard diagnosis when a configured hosted backend is unavailable.
+- Always complete valid evidence sessions and write both `session.json` and `diagnosis.json` for the dashboard.
+- Preserve framework metadata, runtime errors, supporting evidence, recommendations, and causal graph data in fallback diagnoses.
+
 ## 0.1.0 - 2026-05-29
 
 Initial V1 release of Critiqor.

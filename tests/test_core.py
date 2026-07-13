@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 from click.testing import CliRunner
 
-from critiqor import DiagnosisResult, EvidenceSubmission, OpenClawRuntimeObserver, create_session, finalize_session, load_active_session
+from critiqor import DiagnosisResult, EvidenceSubmission, HostedDiagnosisEngine, OpenClawRuntimeObserver, create_session, finalize_session, load_active_session
 from critiqor.backend import BackendConfig, BackendConfigurationError, submit_evidence
 from critiqor.cli import main as cli_main
 from critiqor.dashboard import validate_diagnosis
@@ -106,6 +106,41 @@ class PublicClientTests(unittest.TestCase):
             self.assertEqual(saved["metadata"]["framework"], "codex")
             self.assertEqual(saved["status"], "FINALIZING")
             self.assertTrue((Path(tmp) / session["run_id"] / "session.json").exists())
+
+    def test_default_finalize_creates_local_dashboard_artifacts_without_backend_setup(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(
+            "os.environ", {"CRITIQOR_BACKEND_URL": "", "CRITIQOR_API_KEY": ""}
+        ):
+            session = create_session(runs_dir=tmp, framework="codex")
+            with patch("critiqor.session.resolve_diagnosis_engine", return_value=HostedDiagnosisEngine()), patch(
+                "critiqor.engine.submit_evidence"
+            ) as submit:
+                finalized = finalize_session(tmp)
+
+            submit.assert_not_called()
+            self.assertIsNone(load_active_session(tmp))
+            self.assertEqual(finalized["status"], "COMPLETED")
+            diagnosis_path = Path(tmp) / session["run_id"] / "diagnosis.json"
+            self.assertTrue(diagnosis_path.exists())
+            diagnosis = json.loads(diagnosis_path.read_text())
+            self.assertEqual(diagnosis["diagnosis_source"], "local_fallback")
+            self.assertEqual(diagnosis["framework"], "codex")
+            self.assertTrue(validate_diagnosis(diagnosis))
+
+    def test_configured_hosted_outage_falls_back_and_completes_session(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp, patch.dict(
+            "os.environ", {"CRITIQOR_BACKEND_URL": "https://offline.example", "CRITIQOR_API_KEY": ""}
+        ):
+            session = create_session(runs_dir=tmp)
+            engine = HostedDiagnosisEngine()
+            with patch("critiqor.session.resolve_diagnosis_engine", return_value=engine), patch(
+                "critiqor.engine.submit_evidence", side_effect=BackendConfigurationError("offline")
+            ):
+                finalized = finalize_session(tmp)
+
+            self.assertEqual(finalized["status"], "COMPLETED")
+            self.assertIsNone(load_active_session(tmp))
+            self.assertTrue((Path(tmp) / session["run_id"] / "diagnosis.json").exists())
 
     def test_cli_help_is_public_client_focused(self) -> None:
         self.assertEqual(cli_main(["help"]), 0)

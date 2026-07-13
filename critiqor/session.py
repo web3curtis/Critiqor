@@ -5,11 +5,14 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
+import os
 from pathlib import Path
 import time
 from typing import Any
 
-from .engine import resolve_diagnosis_engine
+from .backend import BackendConfigurationError, BackendResponseError
+from .engine import HostedDiagnosisEngine, resolve_diagnosis_engine
+from .local_diagnosis import build_local_diagnosis
 from .schemas import EvidenceSubmission
 
 IDLE = "IDLE"
@@ -323,8 +326,28 @@ def finalize_session(runs_dir: str | Path = "runs") -> dict[str, Any] | None:
         session={key: value for key, value in session.items() if key != "diagnosis"},
         events=events,
     )
-    diagnosis = resolve_diagnosis_engine().generate(submission).to_dict()
-    diagnosis.setdefault("diagnosis_source", "hosted")
+    engine = resolve_diagnosis_engine()
+    hosted_configured = bool(os.environ.get("CRITIQOR_BACKEND_URL") or os.environ.get("CRITIQOR_API_KEY"))
+    if isinstance(engine, HostedDiagnosisEngine) and not hosted_configured:
+        diagnosis = build_local_diagnosis(
+            run_id=run_id,
+            metadata=metadata,
+            events=events,
+            session_json=str(paths.evidence_summary_path(run_id)),
+        )
+    else:
+        try:
+            diagnosis = engine.generate(submission).to_dict()
+            diagnosis.setdefault("diagnosis_source", "hosted" if isinstance(engine, HostedDiagnosisEngine) else "private")
+        except (BackendConfigurationError, BackendResponseError):
+            if not isinstance(engine, HostedDiagnosisEngine):
+                raise
+            diagnosis = build_local_diagnosis(
+                run_id=run_id,
+                metadata=metadata,
+                events=events,
+                session_json=str(paths.evidence_summary_path(run_id)),
+            )
     diagnosis["run_id"] = run_id
     raw_evidence = diagnosis.setdefault("raw_evidence", {})
     if isinstance(raw_evidence, dict):
