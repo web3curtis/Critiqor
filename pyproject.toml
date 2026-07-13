@@ -33,4 +33,4 @@ critiqor = ["clawhub/critiqor-openclaw/*.js", "clawhub/critiqor-openclaw/*.json"
 critiqor = "critiqor.cli:main"
 
 [tool.setuptools.exclude-package-data]
-"*" = ["private_backend/*", "runs/*", "tests/*"]
+"*" = ["runs/*", "tests/*"]

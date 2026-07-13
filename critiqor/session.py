@@ -5,15 +5,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
-import os
 from pathlib import Path
 import time
 from typing import Any
 
-from .backend import BackendConfigurationError, BackendResponseError
-from .engine import HostedDiagnosisEngine, resolve_diagnosis_engine
-from .local_diagnosis import build_local_diagnosis
-from .schemas import EvidenceSubmission
+from .diagnosis import generate_diagnosis
 
 IDLE = "IDLE"
 MONITORING = "MONITORING"
@@ -316,38 +312,12 @@ def finalize_session(runs_dir: str | Path = "runs") -> dict[str, Any] | None:
     events = [*stored_events, *plugin_events, *[event for event in lifecycle_events if event not in stored_events]]
     write_session_evidence_summary(runs_dir, run_id, events)
 
-    submission = EvidenceSubmission(
+    diagnosis = generate_diagnosis(
         run_id=run_id,
-        metadata={
-            **metadata,
-            "framework": metadata.get("framework", "openclaw"),
-            "session_json": str(paths.evidence_summary_path(run_id)),
-        },
-        session={key: value for key, value in session.items() if key != "diagnosis"},
+        metadata=metadata,
         events=events,
+        session_json=str(paths.evidence_summary_path(run_id)),
     )
-    engine = resolve_diagnosis_engine()
-    hosted_configured = bool(os.environ.get("CRITIQOR_BACKEND_URL") or os.environ.get("CRITIQOR_API_KEY"))
-    if isinstance(engine, HostedDiagnosisEngine) and not hosted_configured:
-        diagnosis = build_local_diagnosis(
-            run_id=run_id,
-            metadata=metadata,
-            events=events,
-            session_json=str(paths.evidence_summary_path(run_id)),
-        )
-    else:
-        try:
-            diagnosis = engine.generate(submission).to_dict()
-            diagnosis.setdefault("diagnosis_source", "hosted" if isinstance(engine, HostedDiagnosisEngine) else "private")
-        except (BackendConfigurationError, BackendResponseError):
-            if not isinstance(engine, HostedDiagnosisEngine):
-                raise
-            diagnosis = build_local_diagnosis(
-                run_id=run_id,
-                metadata=metadata,
-                events=events,
-                session_json=str(paths.evidence_summary_path(run_id)),
-            )
     diagnosis["run_id"] = run_id
     raw_evidence = diagnosis.setdefault("raw_evidence", {})
     if isinstance(raw_evidence, dict):

@@ -7,16 +7,16 @@ import os
 from pathlib import Path
 import hashlib
 import shutil
+import secrets
 import socket
 import subprocess
 import time
 from typing import Any
 from urllib.error import URLError
-from urllib.request import urlopen
+from urllib.request import Request, urlopen
 from urllib.parse import urlencode
 import webbrowser
 
-from .backend import BackendConfig, backend_configuration_hint
 from .session import list_completed_runs, load_active_session, paths_for, read_json
 
 
@@ -50,6 +50,8 @@ def serve_dashboard(
         return 1
 
     resolved_runs = str(Path(runs_dir).resolve())
+    visibility = str(diagnosis.get("visibility") or "private")
+    access_code = create_dashboard_access(resolved_runs, selected_run_id) if visibility == "private" else ""
     existing = reusable_dashboard_server(resolved_runs, host, selected_run_id)
     process: subprocess.Popen[Any] | None = None
     if existing:
@@ -63,7 +65,11 @@ def serve_dashboard(
             return 1
         write_dashboard_server_record(resolved_runs, host, actual_port, process.pid, dashboard_dir)
 
-    url = f"http://{host}:{actual_port}/?{urlencode({'run_id': selected_run_id})}"
+    url = (
+        f"http://{host}:{actual_port}/access/{selected_run_id}?mode=private"
+        if access_code
+        else f"http://{host}:{actual_port}/?{urlencode({'run_id': selected_run_id})}"
+    )
     try:
         wait_for_dashboard_run(host, actual_port, selected_run_id)
     except RuntimeError as exc:
@@ -74,6 +80,8 @@ def serve_dashboard(
         return 1
 
     print(f"Dashboard run: {selected_run_id}", flush=True)
+    if access_code:
+        print(f"Dashboard access code: {access_code}", flush=True)
     print(f"Critiqor dashboard: {url}", flush=True)
     if open_browser:
         webbrowser.open(url)
@@ -104,13 +112,6 @@ def explain_missing_diagnosis(runs_dir: str | Path, requested_run_id: str | None
             event for event in session.get("event_log", [])
             if isinstance(event, dict) and event.get("event") == "error_event"
         ]
-        backend_errors = [event for event in errors if event.get("source") == "critiqor_backend"]
-        if backend_errors:
-            print(f"Latest diagnosis error: {backend_errors[-1].get('message', 'backend unavailable')}")
-            print(f"Configured backend: {BackendConfig.from_env().url}")
-            print(backend_configuration_hint())
-            print("Your evidence is retained. After the backend is reachable, run `critiqor finalize` once, then retry the dashboard.")
-            return
         print("This run has evidence but no diagnosis yet. Run `critiqor finalize` once.")
         return
     completed = list_completed_runs(runs_dir)
@@ -254,6 +255,18 @@ def dashboard_server_record_path(runs_dir: str | Path) -> Path:
     return dashboard_state_dir(runs_dir) / "server.json"
 
 
+def dashboard_access_path(runs_dir: str | Path) -> Path:
+    return dashboard_state_dir(runs_dir) / "access.json"
+
+
+def create_dashboard_access(runs_dir: str | Path, run_id: str) -> str:
+    code = secrets.token_hex(4).upper()
+    path = dashboard_access_path(runs_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps({"run_id": run_id, "code": code, "created_at": time.time()}), encoding="utf-8")
+    return code
+
+
 def dashboard_log_path(runs_dir: str | Path) -> Path:
     digest = hashlib.sha1(str(Path(runs_dir).resolve()).encode("utf-8")).hexdigest()[:12]
     return Path(os.environ.get("TMPDIR", "/tmp")) / f"critiqor-dashboard-{digest}.log"
@@ -318,7 +331,7 @@ def wait_for_dashboard_run(host: str, port: int, run_id: str, timeout_seconds: f
     url = f"http://{host}:{port}/api/runs/{run_id}"
     while time.time() < deadline:
         try:
-            with urlopen(url, timeout=1.5) as response:
+            with urlopen(Request(url, headers={"x-critiqor-dashboard-probe": "1"}), timeout=1.5) as response:
                 payload = json.loads(response.read().decode("utf-8"))
             if isinstance(payload, dict) and str(payload.get("run_id")) == run_id:
                 return

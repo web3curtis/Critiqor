@@ -1,4 +1,4 @@
-"""Public Critiqor schemas shared by the CLI, integrations, and backend API."""
+"""Schemas shared by the CLI, integrations, and local diagnosis pipeline."""
 
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ class RuntimeEvent:
 
 @dataclass(frozen=True)
 class EvidenceSubmission:
-    """Public request body sent from the client to the private diagnosis backend."""
+    """Normalized evidence supplied to a diagnosis implementation."""
 
     run_id: str
     metadata: dict[str, Any]
@@ -75,7 +75,7 @@ class EvidenceSubmission:
 
 @dataclass(frozen=True)
 class DiagnosisResult:
-    """Diagnosis payload returned by the private backend."""
+    """Normalized diagnosis payload."""
 
     run_id: str
     payload: dict[str, Any]

@@ -464,7 +464,7 @@ def run_legacy_openclaw_command(options: MonitorOpenClawOptions) -> int:
     print("Critiqor observed OpenClaw execution")
     print(f"events_collected: {len(events)}")
     print(f"evidence_json: {output_path}")
-    print("Run `critiqor monitor openclaw` and `critiqor finalize` to generate a private-backend diagnosis.")
+    print("Run `critiqor monitor openclaw` and `critiqor finalize` to generate a local diagnosis.")
     return 0
 
 

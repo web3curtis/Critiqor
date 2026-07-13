@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Consolidate the local diagnosis engine into the public repository.
+- Split diagnosis classification, analysis, recommendations, and assembly into focused modules.
+- Remove split-era hosted-backend and private-plugin adapters.
+- Generate a new private dashboard access code for each dashboard session.
+
 ## 0.2.2 - 2026-07-13
 
 - Restore offline finalization without requiring a backend URL or API key.
