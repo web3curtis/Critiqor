@@ -269,10 +269,10 @@ def monitor_command(framework_name: str, cwd: str | None, timeout: float | None,
 @click.option("--no-dashboard", is_flag=True, help="Finalize without opening the local dashboard.")
 @click.option("--host", default="127.0.0.1", show_default=True, help="Local dashboard host.")
 @click.option("--port", type=int, default=0, show_default=True, help="Local dashboard port. Use 0 to choose an available port.")
-@click.option("--dashboard-url", default=None, help="Dashboard URL. Defaults to the hosted Critiqor dashboard.")
+@click.option("--dashboard-url", default=None, help="Optional hosted dashboard URL. By default Critiqor opens the local dashboard.")
 @click.option("--ingest-url", default=None, help="Dashboard API ingest URL. Defaults to <dashboard-url>/api/runs/ingest.")
 def finalize_command(runs_dir: str, no_dashboard: bool, host: str, port: int, dashboard_url: str | None, ingest_url: str | None) -> int:
-    """Stop observation, generate diagnosis, and open the latest dashboard."""
+    """Stop observation, generate diagnosis, and open the local dashboard."""
 
     return finalize_observation(FinalizeOptions(runs_dir=runs_dir, no_dashboard=no_dashboard, host=host, port=port, dashboard_url=dashboard_url, ingest_url=ingest_url))
 
@@ -283,12 +283,13 @@ def finalize_command(runs_dir: str, no_dashboard: bool, host: str, port: int, da
 @click.option("--runs", default="runs", show_default=True, help="Directory containing finalized Critiqor run artifacts.")
 @click.option("--host", default="127.0.0.1", show_default=True, help="Dashboard host.")
 @click.option("--port", type=int, default=0, show_default=True, help="Dashboard port. Use 0 to choose an available port.")
-@click.option("--dashboard-url", default=None, help="Dashboard URL. Defaults to the hosted Critiqor dashboard.")
+@click.option("--dashboard-url", default=None, help="Optional hosted dashboard URL. By default Critiqor opens the local dashboard.")
 @click.option("--ingest-url", default=None, help="Dashboard API ingest URL. Defaults to <dashboard-url>/api/runs/ingest.")
 def dashboard_command(run_id: str | None, events: str, runs: str, host: str, port: int, dashboard_url: str | None, ingest_url: str | None) -> int:
-    """Open the latest or selected diagnosis in the latest dashboard."""
+    """Open the latest or selected diagnosis in the local dashboard."""
 
-    return open_hosted_dashboard(DashboardOptions(events=events, runs=runs, host=host, port=port, run_id=run_id, dashboard_url=dashboard_url, ingest_url=ingest_url))
+    options = DashboardOptions(events=events, runs=runs, host=host, port=port, run_id=run_id, dashboard_url=dashboard_url, ingest_url=ingest_url)
+    return open_hosted_dashboard(options) if dashboard_url or ingest_url else serve_local_dashboard(options)
 
 
 @cli.command("runs", cls=BriefHelpCommand)

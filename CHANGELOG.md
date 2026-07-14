@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.4 - 2026-07-14
+
+- Restore the local dashboard as the default for `critiqor finalize` and `critiqor dashboard`.
+- Read completed runs directly from local `diagnosis.json` and `session.json` artifacts.
+- Keep hosted dashboard synchronization available only through explicit URL overrides.
+- Restore functional local visibility controls and richer diagnosis exports.
+
 ## 0.2.3 - 2026-07-14
 
 - Consolidate the local diagnosis engine into the public repository.

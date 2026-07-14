@@ -408,12 +408,20 @@ def finalize_observation(options: FinalizeOptions) -> int:
         return 1
 
     ui.success("Diagnosis saved")
-    ui.muted("Syncing latest dashboard...")
-    return open_hosted_dashboard(DashboardOptions(
+    if options.dashboard_url or options.ingest_url:
+        ui.muted("Syncing hosted dashboard...")
+        return open_hosted_dashboard(DashboardOptions(
+            runs=options.runs_dir,
+            run_id=run_id,
+            dashboard_url=options.dashboard_url,
+            ingest_url=options.ingest_url,
+        ))
+    ui.muted("Starting local dashboard...")
+    return serve_local_dashboard(DashboardOptions(
         runs=options.runs_dir,
+        host=options.host,
+        port=options.port,
         run_id=run_id,
-        dashboard_url=options.dashboard_url,
-        ingest_url=options.ingest_url,
     ))
 
 

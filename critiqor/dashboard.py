@@ -50,8 +50,6 @@ def serve_dashboard(
         return 1
 
     resolved_runs = str(Path(runs_dir).resolve())
-    visibility = str(diagnosis.get("visibility") or "private")
-    access_code = create_dashboard_access(resolved_runs, selected_run_id) if visibility == "private" else ""
     existing = reusable_dashboard_server(resolved_runs, host, selected_run_id)
     process: subprocess.Popen[Any] | None = None
     if existing:
@@ -65,11 +63,7 @@ def serve_dashboard(
             return 1
         write_dashboard_server_record(resolved_runs, host, actual_port, process.pid, dashboard_dir)
 
-    url = (
-        f"http://{host}:{actual_port}/access/{selected_run_id}?mode=private"
-        if access_code
-        else f"http://{host}:{actual_port}/?{urlencode({'run_id': selected_run_id})}"
-    )
+    url = f"http://{host}:{actual_port}/?{urlencode({'run_id': selected_run_id})}"
     try:
         wait_for_dashboard_run(host, actual_port, selected_run_id)
     except RuntimeError as exc:
@@ -80,8 +74,6 @@ def serve_dashboard(
         return 1
 
     print(f"Dashboard run: {selected_run_id}", flush=True)
-    if access_code:
-        print(f"Dashboard access code: {access_code}", flush=True)
     print(f"Critiqor dashboard: {url}", flush=True)
     if open_browser:
         webbrowser.open(url)
