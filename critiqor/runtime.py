@@ -11,6 +11,10 @@ import shutil
 import subprocess
 import sys
 from typing import Any
+from urllib import request
+from urllib.error import URLError
+from urllib.parse import urlencode
+import webbrowser
 from .frameworks import Framework
 from .openclaw import monitor_openclaw_process
 from . import terminal_ui as ui
@@ -23,6 +27,9 @@ from .session import (
     paths_for,
     read_json,
 )
+
+
+HOSTED_DASHBOARD_URL = "https://critiqor-core-engine.vercel.app/"
 
 
 @dataclass(frozen=True)
@@ -105,6 +112,8 @@ class FinalizeOptions:
     no_dashboard: bool = False
     host: str = "127.0.0.1"
     port: int = 0
+    dashboard_url: str | None = None
+    ingest_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -115,6 +124,8 @@ class DashboardOptions:
     port: int = 0
     run_id: str | None = None
     open_browser: bool = True
+    dashboard_url: str | None = None
+    ingest_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -397,8 +408,13 @@ def finalize_observation(options: FinalizeOptions) -> int:
         return 1
 
     ui.success("Diagnosis saved")
-    ui.muted("Starting local dashboard...")
-    return serve_local_dashboard(DashboardOptions(runs=options.runs_dir, host=options.host, port=options.port, run_id=run_id))
+    ui.muted("Syncing latest dashboard...")
+    return open_hosted_dashboard(DashboardOptions(
+        runs=options.runs_dir,
+        run_id=run_id,
+        dashboard_url=options.dashboard_url,
+        ingest_url=options.ingest_url,
+    ))
 
 
 def serve_local_dashboard(options: DashboardOptions) -> int:
@@ -412,6 +428,101 @@ def serve_local_dashboard(options: DashboardOptions) -> int:
         run_id=options.run_id,
         open_browser=options.open_browser,
     )
+
+
+def open_hosted_dashboard(options: DashboardOptions) -> int:
+    """Upload a validated diagnosis and open the current hosted dashboard run."""
+    from .dashboard import latest_diagnosis_run_id, load_diagnosis_run, validate_diagnosis
+
+    run_id = options.run_id or latest_diagnosis_run_id(options.runs)
+    diagnosis = load_diagnosis_run(options.runs, run_id)
+    if not run_id or not validate_diagnosis(diagnosis):
+        ui.error("No dashboard-ready diagnosis was found.")
+        return 1
+    ingest_url = dashboard_ingest_url(options.ingest_url, options.dashboard_url)
+    try:
+        sync_result = sync_dashboard_diagnosis(ingest_url, diagnosis)
+    except OSError as exc:
+        ui.error(f"Dashboard sync failed: {exc}")
+        ui.muted("The local diagnosis is safe. Retry with `critiqor dashboard`.")
+        return 1
+    access_code = str(sync_result.get("access_code") or "")
+    url = dashboard_run_url(options.dashboard_url, run_id, private=bool(access_code))
+    ui.success("Dashboard sync verified")
+    if access_code:
+        ui.section("Dashboard Access Code", access_code, icon="◈")
+    ui.section("Dashboard", url, icon="◉")
+    if options.open_browser:
+        webbrowser.open(url)
+    return 0
+
+
+def dashboard_base_url(raw_url: str | None = None) -> str:
+    return (raw_url or os.environ.get("CRITIQOR_DASHBOARD_URL") or HOSTED_DASHBOARD_URL).rstrip("/")
+
+
+def dashboard_run_url(raw_url: str | None, run_id: str, private: bool = False) -> str:
+    if private:
+        return f"{dashboard_base_url(raw_url)}/access/{run_id}?mode=private"
+    return f"{dashboard_base_url(raw_url)}/?{urlencode({'run_id': run_id})}"
+
+
+def dashboard_ingest_url(raw_url: str | None, dashboard_url: str | None) -> str:
+    return raw_url or os.environ.get("CRITIQOR_DASHBOARD_INGEST_URL") or f"{dashboard_base_url(dashboard_url)}/api/runs/ingest"
+
+
+def sync_dashboard_diagnosis(ingest_url: str, diagnosis: dict[str, Any]) -> dict[str, Any]:
+    payload = json.dumps(diagnosis).encode("utf-8")
+    try:
+        sync_body = dashboard_request(request.Request(
+            ingest_url,
+            data=payload,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        ))
+        sync_result = json.loads(sync_body.decode("utf-8"))
+    except (OSError, URLError, json.JSONDecodeError) as exc:
+        raise OSError(str(exc)) from exc
+
+    run_api_url = ingest_url.rstrip("/")
+    if run_api_url.endswith("/ingest"):
+        run_api_url = run_api_url[:-len("/ingest")]
+    run_api_url = f"{run_api_url}/{diagnosis['run_id']}"
+    access_code = str(sync_result.get("access_code") or "") if isinstance(sync_result, dict) else ""
+    try:
+        verified = json.loads(dashboard_request(request.Request(
+            run_api_url,
+            headers={
+                "x-critiqor-dashboard-probe": "1",
+                "x-critiqor-access-code": access_code,
+            },
+        )).decode("utf-8"))
+    except (OSError, URLError, json.JSONDecodeError) as exc:
+        raise OSError(f"dashboard verification failed: {exc}") from exc
+    if not isinstance(verified, dict) or str(verified.get("run_id")) != str(diagnosis["run_id"]):
+        raise OSError("dashboard API returned the wrong diagnosis")
+    return sync_result if isinstance(sync_result, dict) else {}
+
+
+def dashboard_request(req: request.Request) -> bytes:
+    """Perform a dashboard request with curl as a CA-bundle fallback."""
+    try:
+        with request.urlopen(req, timeout=20) as response:
+            return response.read()
+    except URLError as exc:
+        if "CERTIFICATE_VERIFY_FAILED" not in str(exc) or shutil.which("curl") is None:
+            raise
+    command = ["curl", "-fsS", "--max-time", "20", "-X", req.get_method()]
+    for key, value in req.header_items():
+        command.extend(["-H", f"{key}: {value}"])
+    if req.data is not None:
+        command.extend(["--data-binary", "@-"])
+    command.append(req.full_url)
+    completed = subprocess.run(command, input=req.data, capture_output=True, check=False)
+    if completed.returncode:
+        detail = completed.stderr.decode("utf-8", errors="replace").strip()
+        raise OSError(detail or f"curl exited with status {completed.returncode}")
+    return completed.stdout
 
 
 def list_runs(options: RunsOptions) -> int:

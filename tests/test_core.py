@@ -14,10 +14,30 @@ from critiqor.cli import main as cli_main
 from critiqor.dashboard import validate_diagnosis
 from critiqor.dashboard import create_dashboard_access, dashboard_access_path
 from critiqor.frameworks import Framework, custom_name_error, load_config, resolve_framework, save_framework
-from critiqor.runtime import MonitorFrameworkOptions, monitor_framework
+from critiqor.runtime import (
+    MonitorFrameworkOptions,
+    dashboard_ingest_url,
+    dashboard_run_url,
+    monitor_framework,
+)
 
 
 class PublicClientTests(unittest.TestCase):
+    def test_hosted_dashboard_urls_target_current_run_api(self) -> None:
+        base = "https://dashboard.example/current/"
+        self.assertEqual(
+            dashboard_ingest_url(None, base),
+            "https://dashboard.example/current/api/runs/ingest",
+        )
+        self.assertEqual(
+            dashboard_run_url(base, "run_123"),
+            "https://dashboard.example/current/?run_id=run_123",
+        )
+        self.assertEqual(
+            dashboard_run_url(base, "run_123", private=True),
+            "https://dashboard.example/current/access/run_123?mode=private",
+        )
+
     def test_public_package_exports_local_diagnosis_without_split_wrappers(self) -> None:
         import critiqor
         self.assertTrue(callable(critiqor.generate_diagnosis))

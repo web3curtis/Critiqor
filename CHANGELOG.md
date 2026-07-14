@@ -1,11 +1,14 @@
 # Changelog
 
-## Unreleased
+## 0.2.3 - 2026-07-14
 
 - Consolidate the local diagnosis engine into the public repository.
 - Split diagnosis classification, analysis, recommendations, and assembly into focused modules.
 - Remove split-era hosted-backend and private-plugin adapters.
 - Generate a new private dashboard access code for each dashboard session.
+- Point `critiqor finalize` and `critiqor dashboard` at the current hosted dashboard.
+- Upload and verify the selected `diagnosis.json` before opening `/?run_id=<run_id>`.
+- Add dashboard and ingest URL overrides for self-hosted deployments and release verification.
 
 ## 0.2.2 - 2026-07-13
 
