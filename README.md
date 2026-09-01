@@ -20,7 +20,7 @@
 </p>
 
 <p align="center">
-  <code>pip install critiqor==0.2.18</code>
+  <code>pip install critiqor</code>
 </p>
 
 Critiqor helps developers understand whether an AI agent run can be trusted.
@@ -31,41 +31,7 @@ Instead of judging only the final answer, Critiqor looks at what happened while
 the agent worked: framework lifecycle events, tool activity, memory behavior,
 errors, confidence signals, and whether the next run improved.
 
-This repository is that existing product, plus a WebMCP evaluation layer added
-for the [WebMCP Hackathon](https://webmcp.devpost.com/).
-
 ![Critiqor dashboard overview](assets/screenshots/dashboard-overview.png)
-
----
-
-## WebMCP Hackathon
-
-**Research question:** Which mechanisms that helped MCP become more production-ready can be adapted to improve WebMCP reliability?
-
-Critiqor already answered whether an agent run can be trusted, why, and whether a later run improved. The hackathon work extends that same observe → diagnose → improve loop to WebMCP, instead of shipping a separate product.
-
-When a run includes WebMCP events, Critiqor now:
-
-- records consequential tool calls, outcomes, and authoritative application state
-- treats a lost or timed-out response as `unknown`, not as a safe failure
-- flags a blind retry of the same intent before the first outcome is reconciled
-- writes a run-specific improvement playbook from that evidence
-- compares a matched later run and reports whether the same failure recurred or was resolved
-
-The first implementation focuses on one failure: retrying a consequential WebMCP action after an ambiguous outcome. A raw agent can duplicate an effect. After the playbook, the same task reconciles first and stops at one effect.
-
-Interactive exploration of the matched raw vs improved experiment:
-
-https://webmcp-reliability.terrence-qiu-7311.chatgpt.site
-
-Source for that exploration lives in [`explorations/webmcp-reliability/`](explorations/webmcp-reliability/). Install and review runs with the existing Critiqor CLI:
-
-```bash
-pip install critiqor==0.2.18
-critiqor monitor
-critiqor finalize
-critiqor dashboard
-```
 
 ---
 
