@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/web3curtis/Critiqor/main/assets/Critiqor.png" alt="Critiqor logo" width="120" />
+  <img src="assets/Critiqor.png" alt="Critiqor logo" width="120" />
 </p>
 
 <h1 align="center">Critiqor</h1>
