@@ -1,4 +1,4 @@
-"""Supervised runtime operations for Critiqor agent sessions."""
+"""Supervised runtime operations for Critiqor OpenClaw sessions."""
 
 from __future__ import annotations
 
@@ -10,14 +10,12 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 from typing import Any
-from urllib import request
-from urllib.error import URLError
-from urllib.parse import urlencode
-import webbrowser
-from .frameworks import Framework
 from .openclaw import monitor_openclaw_process
-from . import terminal_ui as ui
+from .frameworks import Framework
+from .integrity import object_digest, verify_manifest
+from .schemas import validate_diagnosis_payload
 from .session import (
     abort_session,
     append_event_to_run,
@@ -27,9 +25,6 @@ from .session import (
     paths_for,
     read_json,
 )
-
-
-HOSTED_DASHBOARD_URL = "https://critiqor-core-engine.vercel.app/"
 
 
 @dataclass(frozen=True)
@@ -47,63 +42,14 @@ class MonitorOpenClawOptions:
     openclaw_command: str = "openclaw chat"
     agent_command: tuple[str, ...] = ()
 
-
 @dataclass(frozen=True)
 class MonitorFrameworkOptions:
     framework: Framework
-    agent_id: str | None = None
-    tenant_id: str = "default"
-    visibility: str = "private"
-    benchmark_id: str = "agent_runtime_v1"
-    difficulty_tier: str = "standard"
     cwd: str | None = None
     timeout: float | None = None
     runs_dir: str = "runs"
-
-
-def import_runtime_logs(source: Path, framework: Framework, runs_dir: str = "runs") -> int:
-    """Normalize external log records into a new, independent Critiqor session."""
-    active = load_active_session(runs_dir)
-    if active:
-        ui.warning(f"Critiqor already has an active session: {active['run_id']}.")
-        ui.muted("The existing evidence is safe.")
-        ui.command("critiqor finalize", "Finish Active Session")
-        return 1
-    files = [source] if source.is_file() else sorted(path for path in source.rglob("*") if path.is_file())
-    if not files:
-        ui.error("No runtime log files found.")
-        return 2
-    try:
-        session = create_session(
-            runs_dir=runs_dir,
-            agent_id=f"{framework.slug}_import",
-            benchmark_id="imported_runtime_v1",
-            framework=framework.slug,
-        )
-    except RuntimeError as exc:
-        ui.error(str(exc))
-        return 1
-    run_id = str(session["run_id"])
-    imported = 0
-    for path in files:
-        try:
-            for line_number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
-                if not line.strip():
-                    continue
-                try:
-                    record: Any = json.loads(line)
-                except json.JSONDecodeError:
-                    record = {"message": line}
-                append_event_to_run(runs_dir, run_id, "imported_runtime_event", {
-                    "framework": framework.slug, "source_file": str(path), "line": line_number, "record": record,
-                })
-                imported += 1
-        except OSError as exc:
-            append_event_to_run(runs_dir, run_id, "error_event", {"source": str(path), "message": str(exc)})
-    ui.success(f"Imported {imported} runtime log records")
-    ui.success("Evidence normalization complete")
-    ui.command("critiqor finalize")
-    return 0
+    tenant_id: str = "default"
+    visibility: str = "private"
 
 
 @dataclass(frozen=True)
@@ -112,8 +58,6 @@ class FinalizeOptions:
     no_dashboard: bool = False
     host: str = "127.0.0.1"
     port: int = 0
-    dashboard_url: str | None = None
-    ingest_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -124,8 +68,6 @@ class DashboardOptions:
     port: int = 0
     run_id: str | None = None
     open_browser: bool = True
-    dashboard_url: str | None = None
-    ingest_url: str | None = None
 
 
 @dataclass(frozen=True)
@@ -142,6 +84,12 @@ class PolicyCheckOptions:
     maximum_hallucination_risk: int | None = None
 
 
+@dataclass(frozen=True)
+class DoctorOptions:
+    runs_dir: str = "runs"
+    framework: str = "openclaw"
+
+
 class SupervisedOpenClawRuntime:
     """Operations center for launching and observing OpenClaw."""
 
@@ -154,17 +102,18 @@ class SupervisedOpenClawRuntime:
 
         active = load_active_session(self.options.runs_dir)
         if active:
-            ui.warning(f"Critiqor monitoring is already active for {active['run_id']}.")
-            ui.command("critiqor finalize", "Finalize It With")
+            print(f"Critiqor monitoring is already active for {active['run_id']}.")
+            print("Finalize it with:")
+            print("critiqor finalize")
             return 1
 
         launch_command = parse_openclaw_command(self.options.openclaw_command)
         if not launch_command:
-            ui.error("OpenClaw launch command is empty.")
+            print("OpenClaw launch command is empty.")
             return 2
         if shutil.which(launch_command[0]) is None:
-            ui.error(f"OpenClaw command not found: {launch_command[0]}")
-            ui.muted("Install OpenClaw or pass --openclaw-command with the correct executable path.")
+            print(f"OpenClaw command not found: {launch_command[0]}")
+            print("Install OpenClaw or pass --openclaw-command with the correct executable path.")
             return 127
 
         try:
@@ -175,19 +124,17 @@ class SupervisedOpenClawRuntime:
                 visibility=self.options.visibility,
                 benchmark_id=self.options.benchmark_id,
                 difficulty_tier=self.options.difficulty_tier,
-        )
+            )
         except RuntimeError as exc:
-            ui.error(str(exc))
+            print(str(exc))
             return 1
 
         run_id = str(session["run_id"])
-        ui.title("Observation Started")
-        ui.success("OpenClaw detected")
-        ui.success("Runtime observer attached")
-        ui.success("Event collection active")
-        ui.section("Run", run_id, icon="◈")
-        ui.section("Framework", "OpenClaw", icon="◉")
-        ui.muted("Launching OpenClaw...")
+        print("✓ OpenClaw detected")
+        print("✓ Runtime observer attached")
+        print("✓ Event collection active")
+        print()
+        print("Launching OpenClaw...")
 
         env = openclaw_environment(self.options, run_id)
         append_event_to_run(
@@ -226,8 +173,8 @@ class SupervisedOpenClawRuntime:
                     "error_event",
                     {"source": "openclaw_process", "message": f"OpenClaw exited with status {exit_code}"},
                 )
-            ui.success("OpenClaw session ended")
-            ui.command("critiqor finalize")
+            print("OpenClaw session ended.")
+            print("Run `critiqor finalize` to stop monitoring and generate a diagnosis report.")
             return int(exit_code) if exit_code else 0
         except subprocess.TimeoutExpired:
             if process is not None:
@@ -253,8 +200,8 @@ class SupervisedOpenClawRuntime:
                     "process_end",
                     {"command": launch_command, "pid": process.pid, "exit_code": -1, "framework": "openclaw"},
                 )
-            ui.warning("OpenClaw monitor timed out.")
-            ui.command("critiqor finalize")
+            print("OpenClaw monitor timed out.")
+            print("Run `critiqor finalize` to generate a diagnosis report from collected evidence.")
             return 124
         except KeyboardInterrupt:
             if process is not None and process.poll() is None:
@@ -265,164 +212,125 @@ class SupervisedOpenClawRuntime:
                     "error_event",
                     {"source": "critiqor_monitor", "message": "Monitoring process terminated intentionally"},
                 )
-            ui.warning("Monitoring process terminated intentionally.")
-            ui.command("critiqor finalize")
+            print("Monitoring process terminated intentionally.")
+            print("Run `critiqor finalize` to generate a diagnosis report from collected evidence.")
             return 130
         except OSError as exc:
             abort_session(self.options.runs_dir, f"Failed to launch OpenClaw: {exc}")
-            ui.error(f"Failed to launch OpenClaw: {exc}")
+            print(f"Failed to launch OpenClaw: {exc}")
             return 1
 
 
 def monitor_openclaw(options: MonitorOpenClawOptions) -> int:
     return SupervisedOpenClawRuntime(options).run()
 
-
 def monitor_framework(options: MonitorFrameworkOptions) -> int:
-    """Launch any configured terminal framework under the existing observer."""
+    """Launch a configured terminal framework under the common evidence recorder."""
+
     framework = options.framework
-    active = load_active_session(options.runs_dir)
-    if active:
-        ui.warning(f"Critiqor monitoring is already active for {active['run_id']}.")
-        ui.command("critiqor finalize", "Finalize It With")
-        return 1
     command = shlex.split(framework.launch_command)
     if not command:
-        ui.error(f"No launch command configured for {framework.name}.")
-        ui.command("critiqor config", "Update Configuration")
+        print(f"No launch command configured for {framework.name}.")
         return 2
     if shutil.which(command[0]) is None:
-        ui.error(f"{framework.name} command not found: {command[0]}")
+        print(f"{framework.name} command not found: {command[0]}")
         return 127
     try:
         session = create_session(
             runs_dir=options.runs_dir,
-            agent_id=options.agent_id or f"{framework.slug}_agent",
+            agent_id=f"{framework.slug}_agent",
             tenant_id=options.tenant_id,
             visibility=options.visibility,
-            benchmark_id=options.benchmark_id,
-            difficulty_tier=options.difficulty_tier,
+            benchmark_id="agent_runtime_v1",
             framework=framework.slug,
-    )
+        )
     except RuntimeError as exc:
-        ui.error(str(exc))
+        print(str(exc))
         return 1
     run_id = str(session["run_id"])
-    ui.title("Observation Started")
-    ui.success("Runtime observer attached")
-    ui.success("Event collection active")
-    ui.section("Run", run_id, icon="◈")
-    ui.section("Framework", framework.name, icon="◉")
-    ui.muted(f"Launching {framework.name}...")
-    append_event_to_run(options.runs_dir, run_id, "state_transition", {
-        "state": "MONITORING", "message": f"Launching {framework.name} child process",
-    })
+    environment = {
+        **os.environ,
+        "CRITIQOR_RUN_ID": run_id,
+        "CRITIQOR_RUNS_DIR": str(Path(options.runs_dir).resolve()),
+        "CRITIQOR_AGENT_ID": f"{framework.slug}_agent",
+        "CRITIQOR_TENANT_ID": options.tenant_id,
+        "CRITIQOR_VISIBILITY": options.visibility,
+        "CRITIQOR_FRAMEWORK": framework.slug,
+        "CRITIQOR_EVENT_SOURCE": framework.slug,
+    }
     process: subprocess.Popen[Any] | None = None
     try:
-        env = os.environ.copy()
-        env.update({
-            "CRITIQOR_RUN_ID": run_id,
-            "CRITIQOR_RUNS_DIR": str(Path(options.runs_dir).resolve()),
-            "CRITIQOR_AGENT_ID": options.agent_id or f"{framework.slug}_agent",
-            "CRITIQOR_TENANT_ID": options.tenant_id,
-            "CRITIQOR_VISIBILITY": options.visibility,
-            "CRITIQOR_FRAMEWORK": framework.slug,
-            "CRITIQOR_EVENT_SOURCE": framework.slug,
-        })
-        if framework.slug == "openclaw":
-            plugin_dir = critiqor_openclaw_plugin_dir()
-            if plugin_dir.exists():
-                env["OPENCLAW_BUNDLED_PLUGINS_DIR"] = str(plugin_dir.parent)
-        process = subprocess.Popen(command, cwd=options.cwd, env=env)
+        process = subprocess.Popen(command, cwd=options.cwd, env=environment)
         append_event_to_run(options.runs_dir, run_id, "process_start", {
             "command": command, "pid": process.pid, "framework": framework.slug,
         })
         exit_code = process.wait(timeout=options.timeout) if options.timeout else process.wait()
         append_event_to_run(options.runs_dir, run_id, "process_end", {
-            "command": command, "pid": process.pid, "exit_code": exit_code, "framework": framework.slug,
+            "command": command, "pid": process.pid, "exit_code": exit_code,
+            "framework": framework.slug,
         })
-        if exit_code:
-            append_event_to_run(options.runs_dir, run_id, "error_event", {
-                "source": f"{framework.slug}_process", "message": f"{framework.name} exited with status {exit_code}",
-            })
-        ui.success(f"{framework.name} session ended")
-        ui.command("critiqor finalize")
+        print(f"{framework.name} session ended. Run `critiqor finalize`.")
         return int(exit_code or 0)
     except subprocess.TimeoutExpired:
         if process is not None:
             process.terminate()
-        ui.warning(f"{framework.name} monitor timed out.")
+        append_event_to_run(options.runs_dir, run_id, "error_event", {
+            "source": framework.slug, "message": "Process timed out",
+        })
         return 124
     except KeyboardInterrupt:
         if process is not None and process.poll() is None:
             process.terminate()
-        ui.warning("Monitoring process terminated intentionally.")
-        ui.command("critiqor finalize")
         return 130
     except OSError as exc:
         abort_session(options.runs_dir, f"Failed to launch {framework.name}: {exc}")
-        ui.error(f"Failed to launch {framework.name}: {exc}")
+        print(f"Failed to launch {framework.name}: {exc}")
         return 1
 
 
 def finalize_observation(options: FinalizeOptions) -> int:
     active = load_active_session(options.runs_dir)
     if not active:
-        ui.warning("No active Critiqor monitoring session found.")
-        ui.command("critiqor monitor openclaw", "Start One With")
+        print("No active Critiqor monitoring session found.")
+        print("Start one with:")
+        print("critiqor monitor openclaw")
         return 0
 
-    ui.title("Finalizing Observation")
-    ui.success("Stopping observer")
-    ui.success("Finalizing evidence")
-    ui.success("Generating diagnosis")
+    print("Stopping observer...")
+    print("Finalizing evidence...")
+    print("Generating diagnosis...")
     try:
         session = finalize_session(options.runs_dir)
     except RuntimeError as exc:
-        ui.error(str(exc))
-        ui.warning("Diagnosis was not generated.")
-        ui.muted("Evidence remains available and the session is ready to retry.")
-        ui.command("critiqor finalize", "Retry")
+        print(str(exc))
+        print("Diagnosis was not generated. Evidence remains available in the run session artifact.")
         return 1
     if session is None:
-        ui.warning("No active Critiqor monitoring session found.")
-        ui.command("critiqor monitor openclaw", "Start One With")
+        print("No active Critiqor monitoring session found.")
+        print("Start one with:")
+        print("critiqor monitor openclaw")
         return 0
     run_id = str(session["run_id"])
     diagnosis_path = diagnosis_artifact_path(options.runs_dir, run_id)
-    ui.section("Run", run_id, icon="◈")
-    ui.section("Diagnosis Artifact", str(diagnosis_path), icon="◉")
+    print(f"Diagnosis saved: {diagnosis_path}")
     if options.no_dashboard:
-        ui.success("Diagnosis saved")
         return 0
     if not diagnosis_path.exists():
-        ui.error("Diagnosis file not found.")
-        ui.command("critiqor finalize", "Run")
+        print("Diagnosis file not found.")
+        print()
+        print("Run:")
+        print("critiqor finalize")
         return 1
 
     from .dashboard import load_diagnosis_run, validate_diagnosis
 
     diagnosis = load_diagnosis_run(options.runs_dir, run_id)
     if not validate_diagnosis(diagnosis):
-        ui.error("Diagnosis file invalid. Dashboard launch aborted.")
+        print("Diagnosis file invalid. Dashboard launch aborted.")
         return 1
 
-    ui.success("Diagnosis saved")
-    if options.dashboard_url or options.ingest_url:
-        ui.muted("Syncing hosted dashboard...")
-        return open_hosted_dashboard(DashboardOptions(
-            runs=options.runs_dir,
-            run_id=run_id,
-            dashboard_url=options.dashboard_url,
-            ingest_url=options.ingest_url,
-        ))
-    ui.muted("Starting local dashboard...")
-    return serve_local_dashboard(DashboardOptions(
-        runs=options.runs_dir,
-        host=options.host,
-        port=options.port,
-        run_id=run_id,
-    ))
+    print("Starting local dashboard...")
+    return serve_local_dashboard(DashboardOptions(runs=options.runs_dir, host=options.host, port=options.port, run_id=run_id))
 
 
 def serve_local_dashboard(options: DashboardOptions) -> int:
@@ -438,113 +346,88 @@ def serve_local_dashboard(options: DashboardOptions) -> int:
     )
 
 
-def open_hosted_dashboard(options: DashboardOptions) -> int:
-    """Upload a validated diagnosis and open the current hosted dashboard run."""
-    from .dashboard import latest_diagnosis_run_id, load_diagnosis_run, validate_diagnosis
-
-    run_id = options.run_id or latest_diagnosis_run_id(options.runs)
-    diagnosis = load_diagnosis_run(options.runs, run_id)
-    if not run_id or not validate_diagnosis(diagnosis):
-        ui.error("No dashboard-ready diagnosis was found.")
-        return 1
-    ingest_url = dashboard_ingest_url(options.ingest_url, options.dashboard_url)
-    try:
-        sync_result = sync_dashboard_diagnosis(ingest_url, diagnosis)
-    except OSError as exc:
-        ui.error(f"Dashboard sync failed: {exc}")
-        ui.muted("The local diagnosis is safe. Retry with `critiqor dashboard`.")
-        return 1
-    access_code = str(sync_result.get("access_code") or "")
-    url = dashboard_run_url(options.dashboard_url, run_id, private=bool(access_code))
-    ui.success("Dashboard sync verified")
-    if access_code:
-        ui.section("Dashboard Access Code", access_code, icon="◈")
-    ui.section("Dashboard", url, icon="◉")
-    if options.open_browser:
-        webbrowser.open(url)
-    return 0
-
-
-def dashboard_base_url(raw_url: str | None = None) -> str:
-    return (raw_url or os.environ.get("CRITIQOR_DASHBOARD_URL") or HOSTED_DASHBOARD_URL).rstrip("/")
-
-
-def dashboard_run_url(raw_url: str | None, run_id: str, private: bool = False) -> str:
-    if private:
-        return f"{dashboard_base_url(raw_url)}/access/{run_id}?mode=private"
-    return f"{dashboard_base_url(raw_url)}/?{urlencode({'run_id': run_id})}"
-
-
-def dashboard_ingest_url(raw_url: str | None, dashboard_url: str | None) -> str:
-    return raw_url or os.environ.get("CRITIQOR_DASHBOARD_INGEST_URL") or f"{dashboard_base_url(dashboard_url)}/api/runs/ingest"
-
-
-def sync_dashboard_diagnosis(ingest_url: str, diagnosis: dict[str, Any]) -> dict[str, Any]:
-    payload = json.dumps(diagnosis).encode("utf-8")
-    try:
-        sync_body = dashboard_request(request.Request(
-            ingest_url,
-            data=payload,
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        ))
-        sync_result = json.loads(sync_body.decode("utf-8"))
-    except (OSError, URLError, json.JSONDecodeError) as exc:
-        raise OSError(str(exc)) from exc
-
-    run_api_url = ingest_url.rstrip("/")
-    if run_api_url.endswith("/ingest"):
-        run_api_url = run_api_url[:-len("/ingest")]
-    run_api_url = f"{run_api_url}/{diagnosis['run_id']}"
-    access_code = str(sync_result.get("access_code") or "") if isinstance(sync_result, dict) else ""
-    try:
-        verified = json.loads(dashboard_request(request.Request(
-            run_api_url,
-            headers={
-                "x-critiqor-dashboard-probe": "1",
-                "x-critiqor-access-code": access_code,
-            },
-        )).decode("utf-8"))
-    except (OSError, URLError, json.JSONDecodeError) as exc:
-        raise OSError(f"dashboard verification failed: {exc}") from exc
-    if not isinstance(verified, dict) or str(verified.get("run_id")) != str(diagnosis["run_id"]):
-        raise OSError("dashboard API returned the wrong diagnosis")
-    return sync_result if isinstance(sync_result, dict) else {}
-
-
-def dashboard_request(req: request.Request) -> bytes:
-    """Perform a dashboard request with curl as a CA-bundle fallback."""
-    try:
-        with request.urlopen(req, timeout=20) as response:
-            return response.read()
-    except URLError as exc:
-        if "CERTIFICATE_VERIFY_FAILED" not in str(exc) or shutil.which("curl") is None:
-            raise
-    command = ["curl", "-fsS", "--max-time", "20", "-X", req.get_method()]
-    for key, value in req.header_items():
-        command.extend(["-H", f"{key}: {value}"])
-    if req.data is not None:
-        command.extend(["--data-binary", "@-"])
-    command.append(req.full_url)
-    completed = subprocess.run(command, input=req.data, capture_output=True, check=False)
-    if completed.returncode:
-        detail = completed.stderr.decode("utf-8", errors="replace").strip()
-        raise OSError(detail or f"curl exited with status {completed.returncode}")
-    return completed.stdout
-
-
 def list_runs(options: RunsOptions) -> int:
     from .dashboard import list_diagnosis_runs, validate_diagnosis
 
     runs = [run for run in list_diagnosis_runs(options.runs_dir) if validate_diagnosis(run)]
     if not runs:
-        ui.warning("No completed Critiqor evaluations found.")
-        ui.command("critiqor finalize", "Run")
+        print("No completed Critiqor evaluations found.")
+        print("Run:")
+        print("critiqor finalize")
         return 0
-    ui.title("Available Runs")
+    print("Available Runs")
+    print()
     for run in reversed(runs):
-        ui.line(run_summary_line(run))
+        print(run_summary_line(run))
     return 0
+
+
+def run_doctor(options: DoctorOptions) -> int:
+    """Validate the local Critiqor workflow without starting an agent."""
+
+    from .backend import BackendConfig
+    from .dashboard import find_core_engine_dashboard
+
+    checks: list[tuple[str, str, str]] = []
+    runs_path = Path(options.runs_dir).resolve()
+    try:
+        runs_path.mkdir(parents=True, exist_ok=True)
+        with tempfile.NamedTemporaryFile(dir=runs_path, prefix=".doctor-", delete=True):
+            pass
+    except OSError as exc:
+        checks.append(("FAIL", "Run storage", str(exc)))
+    else:
+        checks.append(("PASS", "Run storage", str(runs_path)))
+
+    if options.framework == "openclaw":
+        executable = shutil.which("openclaw")
+        checks.append(
+            (
+                "PASS" if executable else "FAIL",
+                "OpenClaw",
+                executable or "command not found on PATH",
+            )
+        )
+
+    backend = BackendConfig.from_env()
+    if backend.url.startswith(("https://", "http://")):
+        checks.append(("PASS", "Diagnosis backend", backend.url))
+    else:
+        checks.append(("FAIL", "Diagnosis backend", "URL must use HTTP or HTTPS"))
+    asymmetric_signing = bool(
+        os.environ.get("CRITIQOR_SIGNING_PRIVATE_KEY")
+        and os.environ.get("CRITIQOR_SIGNING_PUBLIC_KEY")
+    )
+    legacy_signing = bool(os.environ.get("CRITIQOR_SIGNING_KEY"))
+    checks.append(
+        (
+            "PASS" if asymmetric_signing else "WARN",
+            "Artifact signing",
+            "Ed25519 signing and verification configured"
+            if asymmetric_signing
+            else "HMAC compatibility only" if legacy_signing
+            else "Ed25519 keys are not configured; production policy checks will fail closed",
+        )
+    )
+    dashboard = find_core_engine_dashboard()
+    checks.append(
+        (
+            "PASS" if dashboard else "WARN",
+            "Dashboard",
+            str(dashboard) if dashboard else "not found; set CRITIQOR_DASHBOARD_DIR",
+        )
+    )
+    checks.append(("PASS", "Privacy filter", "redaction and payload bounds active"))
+
+    print("Critiqor Doctor")
+    print()
+    for status, name, detail in checks:
+        print(f"{status:4} {name}: {detail}")
+    failures = sum(status == "FAIL" for status, _, _ in checks)
+    warnings = sum(status == "WARN" for status, _, _ in checks)
+    print()
+    print(f"{len(checks) - failures - warnings} passed, {warnings} warnings, {failures} failed")
+    return 1 if failures else 0
 
 
 def run_summary_line(run: dict[str, Any]) -> str:
@@ -583,12 +466,17 @@ def run_legacy_openclaw_command(options: MonitorOpenClawOptions) -> int:
     print("Critiqor observed OpenClaw execution")
     print(f"events_collected: {len(events)}")
     print(f"evidence_json: {output_path}")
-    print("Run `critiqor monitor openclaw` and `critiqor finalize` to generate a local diagnosis.")
+    print("Run `critiqor monitor openclaw` and `critiqor finalize` to generate a private-backend diagnosis.")
     return 0
 
 
 def check_deployment_policy(options: PolicyCheckOptions) -> int:
-    policy = load_policy(options.policy)
+    policy = {
+        "minimum_trust_score": 75,
+        "maximum_hallucination_risk": 25,
+        "require_signed_manifest": True,
+        **load_policy(options.policy),
+    }
     if options.minimum_trust_score is not None:
         policy["minimum_trust_score"] = options.minimum_trust_score
     if options.maximum_hallucination_risk is not None:
@@ -605,16 +493,102 @@ def check_deployment_policy(options: PolicyCheckOptions) -> int:
         print("Deployment blocked")
         print("Diagnosis artifact is invalid JSON.")
         return 1
-    summary = payload.get("executive_summary") if isinstance(payload.get("executive_summary"), dict) else payload
-    trust = int(summary.get("trust_score", 0) or 0)
-    minimum = int(policy.get("minimum_trust_score", 0) or 0)
-    if trust >= minimum:
-        print("Deployment allowed")
-        print(f"trust_score {trust} >= required {minimum}")
-        return 0
-    print("Deployment blocked")
-    print(f"trust_score {trust} < required {minimum}")
-    return 1
+    errors = validate_diagnosis_payload(payload)
+    allowed_policy_fields = {
+        "minimum_trust_score",
+        "maximum_hallucination_risk",
+        "require_signed_manifest",
+        "required_evidence_status",
+        "agent_id",
+        "tenant_id",
+        "framework",
+        "benchmark_id",
+    }
+    unknown_policy_fields = sorted(set(policy) - allowed_policy_fields)
+    if unknown_policy_fields:
+        errors.append("unknown policy fields: " + ", ".join(unknown_policy_fields))
+    summary = payload.get("executive_summary") if isinstance(payload.get("executive_summary"), dict) else {}
+    manifest = payload.get("evaluation_manifest") if isinstance(payload.get("evaluation_manifest"), dict) else {}
+    unsigned_payload = dict(payload)
+    unsigned_payload.pop("evaluation_manifest", None)
+    trust = score_value(summary.get("trust_score"), "trust_score", errors)
+    minimum = score_value(policy.get("minimum_trust_score"), "minimum_trust_score", errors)
+    risk = score_value(
+        summary.get("hallucination_risk", payload.get("hallucination_risk", 0)),
+        "hallucination_risk",
+        errors,
+    )
+    maximum_risk = score_value(
+        policy.get("maximum_hallucination_risk"),
+        "maximum_hallucination_risk",
+        errors,
+    )
+    expected_agent = options.agent_id or policy.get("agent_id")
+    actual_agent = payload.get("agent_id") or manifest.get("agent_id")
+    checks: list[tuple[bool, str]] = [
+        (trust >= minimum, f"trust_score {trust:g} >= required {minimum:g}"),
+        (risk <= maximum_risk, f"hallucination_risk {risk:g} <= allowed {maximum_risk:g}"),
+    ]
+    checks.append(
+        (
+            str(manifest.get("diagnosis_digest") or "") == object_digest(unsigned_payload),
+            "diagnosis payload matches its signed digest",
+        )
+    )
+    if expected_agent:
+        checks.append(
+            (
+                str(actual_agent or "") == str(expected_agent),
+                f"agent_id {actual_agent!r} matches required {expected_agent!r}",
+            )
+        )
+    for identity_field in ("tenant_id", "framework", "benchmark_id"):
+        if identity_field in policy:
+            actual = payload.get(identity_field) or manifest.get(identity_field)
+            checks.append(
+                (
+                    str(actual or "") == str(policy[identity_field]),
+                    f"{identity_field} {actual!r} matches required {policy[identity_field]!r}",
+                )
+            )
+    required_evidence_status = str(policy.get("required_evidence_status", "verified"))
+    actual_evidence_status = str(manifest.get("evidence_status") or "")
+    checks.append(
+        (
+            actual_evidence_status == required_evidence_status,
+            f"evidence_status {actual_evidence_status!r} matches required {required_evidence_status!r}",
+        )
+    )
+    if bool(policy.get("require_signed_manifest", True)):
+        signature_check = verify_manifest(manifest)
+        checks.append(
+            (
+                bool(signature_check["valid"]),
+                "evaluation manifest signature is verified",
+            )
+        )
+        errors.extend(signature_check["errors"])
+    if errors or not all(passed for passed, _ in checks):
+        print("Deployment blocked")
+        for error in errors:
+            print(f"FAIL: {error}")
+        for passed, message in checks:
+            print(f"{'PASS' if passed else 'FAIL'}: {message}")
+        return 1
+    print("Deployment allowed")
+    for _, message in checks:
+        print(f"PASS: {message}")
+    return 0
+
+
+def score_value(value: Any, field_name: str, errors: list[str]) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        errors.append(f"{field_name} must be a number between 0 and 100")
+        return 0.0
+    result = float(value)
+    if not 0 <= result <= 100:
+        errors.append(f"{field_name} must be between 0 and 100")
+    return result
 
 
 def parse_openclaw_command(raw_command: str) -> list[str]:

@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-import click
-from pathlib import Path
-import subprocess
 import sys
+
+import click
 
 from .banner import CRITIQOR_ASCII_LOGO
 from . import terminal_ui as ui
@@ -27,21 +26,32 @@ class BriefHelpGroup(click.Group):
 
 from .runtime import (
     DashboardOptions,
+    DoctorOptions,
     FinalizeOptions,
+    MonitorOpenClawOptions,
     MonitorFrameworkOptions,
     PolicyCheckOptions,
     RunsOptions,
     check_deployment_policy,
     finalize_observation,
+    monitor_openclaw,
     monitor_framework,
-    import_runtime_logs,
     list_runs,
     serve_local_dashboard,
-    open_hosted_dashboard,
+    run_doctor,
 )
 from .frameworks import (
-    Framework, OFFICIAL_FRAMEWORKS, configured_frameworks, custom_name_error,
-    custom_slug, load_config, resolve_framework, save_framework, update_framework,
+    Framework,
+    OFFICIAL_FRAMEWORKS,
+    configured_frameworks,
+    configured_visibility,
+    custom_name_error,
+    custom_slug,
+    load_config,
+    resolve_framework,
+    save_framework,
+    save_visibility,
+    update_framework,
 )
 
 _COMMAND_HELP = f"""{CRITIQOR_ASCII_LOGO}
@@ -57,25 +67,25 @@ critiqor config
 - Change an observation method or custom framework details
 
 critiqor monitor openclaw
-- Launch `openclaw chat` and begin runtime observation
+- Launch OpenClaw TUI via (openclaw chat) and begin runtime observation
 
 critiqor monitor cc
-- Launch `claude` and begin Claude Code runtime observation
+- Launch Claude Code and begin runtime observation
 
 critiqor monitor codex
-- Launch `codex` and begin Codex CLI runtime observation
-
-critiqor monitor <custom-framework>
-- Launch the custom framework's saved command and begin runtime observation
+- Launch Codex CLI and begin runtime observation
 
 critiqor finalize
-- Stop observation session, generate diagnosis, and open the latest dashboard
+- Stop observation session, generate diagnosis, and open the local dashboard
 
 critiqor dashboard [run_id]
-- Open the latest or selected diagnosis in the latest dashboard
+- Open the latest or selected local diagnosis dashboard
 
 critiqor runs
 - List completed evaluations with summaries
+
+critiqor doctor
+- Check collector, backend, dashboard, signing, privacy, and storage readiness
 
 critiqor help
 - Show available commands
@@ -85,7 +95,7 @@ critiqor help
 @click.group(context_settings={"help_option_names": ["-h", "--help"]}, invoke_without_command=True, cls=BriefHelpGroup)
 @click.pass_context
 def cli(ctx: click.Context) -> None:
-    """Runtime reliability intelligence for AI agents."""
+    """Runtime reliability intelligence for OpenClaw agents."""
 
     if ctx.invoked_subcommand is None:
         click.echo(CRITIQOR_ASCII_LOGO)
@@ -101,7 +111,7 @@ def help_command() -> None:
 
 
 def _choose(title: str, choices: list[str]) -> int:
-    """Arrow-key menu with a numbered fallback for non-interactive input."""
+    """Arrow-key menu with a numbered fallback for redirected input."""
     if not sys.stdin.isatty():
         ui.title(title)
         for index, choice in enumerate(choices, 1):
@@ -131,53 +141,127 @@ def _observation_method() -> str:
     return ("launch_command", "ide_extension", "import_log")[_choose("Choose Observation Method", choices)]
 
 
-def _extension_instructions() -> None:
-    ui.title("Extension Setup")
-    ui.section("Install inside", "VS Code or Cursor", icon="◉")
-    ui.command("critiqor agents", "Then rerun")
-
-
-def _pick_log() -> Path | None:
-    """Open the operating system's native file picker."""
-    try:
-        choose_folder = _choose("Import Runtime Log", ["Select Log File", "Select Log Folder"]) == 1
-        if sys.platform == "darwin":
-            target = "folder" if choose_folder else "file"
-            script = f'POSIX path of (choose {target} with prompt "Select agent runtime logs")'
-            selected = subprocess.run(["osascript", "-e", script], check=False, capture_output=True, text=True)
-            return Path(selected.stdout.strip()) if selected.returncode == 0 and selected.stdout.strip() else None
-        if sys.platform == "win32":
-            script = "Add-Type -AssemblyName System.Windows.Forms; $d=New-Object System.Windows.Forms.OpenFileDialog; if($d.ShowDialog() -eq 'OK'){$d.FileName}"
-            selected = subprocess.run(["powershell", "-NoProfile", "-Command", script], check=False, capture_output=True, text=True)
-            return Path(selected.stdout.strip()) if selected.stdout.strip() else None
-        arguments = ["zenity", "--file-selection", "--title=Select agent runtime logs"]
-        if choose_folder:
-            arguments.append("--directory")
-        selected = subprocess.run(arguments, check=False, capture_output=True, text=True)
-        return Path(selected.stdout.strip()) if selected.returncode == 0 and selected.stdout.strip() else None
-    except OSError:
-        return None
+def _configure_visibility() -> str:
+    visibility = ("private", "shared", "anonymous", "public")[_choose(
+        "Dashboard Visibility", ["Private", "Shared", "Anonymous", "Public"]
+    )]
+    save_visibility(visibility)
+    ui.success(f"Dashboard visibility set to {visibility.title()}")
+    return visibility
 
 
 def _finish_configuration(framework: Framework, method: str) -> int:
     save_framework(framework, method)
-    if method == "ide_extension":
-        _extension_instructions()
-    elif method == "import_log":
-        path = _pick_log()
-        if path:
-            ui.success("Runtime log selected")
-            ui.section("Log Path", str(path), icon="◈")
-            return import_runtime_logs(path, framework)
-        else:
-            ui.warning("No runtime log selected.")
-    else:
-        ui.title("Configuration Complete")
-        ui.success("Framework configured")
-        ui.section("Framework", framework.name, icon="◈")
-        ui.section("Observation Method", "Launch Command", icon="◉")
+    ui.title("Configuration Complete")
+    ui.success("Framework configured")
+    ui.section("Framework", framework.name, icon="◈")
+    ui.section("Observation Method", method.replace("_", " ").title(), icon="◉")
+    if method == "launch_command":
         ui.command(f"critiqor monitor {framework.slug if framework.official else framework.name}")
+    elif method == "ide_extension":
+        ui.command("critiqor agents", "Rerun after installing the VS Code / Cursor extension")
+    else:
+        ui.command("critiqor run -- <agent-command>", "Import-log capture is configured")
     return 0
+
+
+@cli.group(cls=BriefHelpGroup)
+def monitor() -> None:
+    """Monitor an agent framework runtime."""
+
+
+@monitor.command(
+    "openclaw",
+    cls=BriefHelpCommand,
+    context_settings={"ignore_unknown_options": True, "allow_extra_args": True, "help_option_names": ["-h", "--help"]},
+)
+@click.option("--agent-id", default="openclaw_agent", show_default=True, help="Agent identifier.")
+@click.option("--tenant-id", default="default", show_default=True, help="Tenant identifier.")
+@click.option(
+    "--visibility",
+    default="private",
+    show_default=True,
+    type=click.Choice(["private", "public", "anonymous", "shared"]),
+    help="Dashboard-controlled visibility state to apply at ingestion.",
+)
+@click.option("--events", default=".critiqor/events.jsonl", show_default=True, help="Legacy event log path for custom command runs.")
+@click.option("--evaluation", default=".critiqor/latest_run.json", show_default=True, help="Latest run diagnosis JSON path.")
+@click.option("--benchmark-id", default="openclaw_runtime_v1", show_default=True, help="Versioned benchmark id.")
+@click.option(
+    "--difficulty-tier",
+    default="standard",
+    show_default=True,
+    type=click.Choice(["easy", "standard", "hard", "stress"]),
+    help="Benchmark difficulty tier.",
+)
+@click.option("--cwd", default=None, help="Working directory for the agent command.")
+@click.option("--timeout", type=float, default=None, help="Optional process timeout in seconds.")
+@click.option("--runs-dir", default="runs", show_default=True, help="Directory for Critiqor run artifacts.")
+@click.option("--openclaw-command", default="openclaw chat", show_default=True, help="OpenClaw launch command.")
+@click.argument("agent_command", nargs=-1, type=click.UNPROCESSED)
+def monitor_openclaw_command(
+    agent_id: str,
+    tenant_id: str,
+    visibility: str,
+    events: str,
+    evaluation: str,
+    benchmark_id: str,
+    difficulty_tier: str,
+    cwd: str | None,
+    timeout: float | None,
+    runs_dir: str,
+    openclaw_command: str,
+    agent_command: tuple[str, ...],
+) -> int:
+    """Launch OpenClaw and begin runtime observation."""
+
+    options = MonitorOpenClawOptions(
+        agent_id=agent_id,
+        tenant_id=tenant_id,
+        visibility=visibility,
+        events=events,
+        evaluation=evaluation,
+        benchmark_id=benchmark_id,
+        difficulty_tier=difficulty_tier,
+        cwd=cwd,
+        timeout=timeout,
+        runs_dir=runs_dir,
+        openclaw_command=openclaw_command,
+        agent_command=agent_command,
+    )
+    return monitor_openclaw(options)
+
+
+def _monitor_official(slug: str, cwd: str | None, timeout: float | None, runs_dir: str) -> int:
+    resolved = resolve_framework(slug)
+    if resolved is None:
+        raise click.ClickException(f"Unknown framework: {slug}")
+    framework, _method = resolved
+    return monitor_framework(
+        MonitorFrameworkOptions(
+            framework=framework, cwd=cwd, timeout=timeout, runs_dir=runs_dir
+        )
+    )
+
+
+@monitor.command("cc", cls=BriefHelpCommand)
+@click.option("--cwd", default=None)
+@click.option("--timeout", type=float, default=None)
+@click.option("--runs-dir", default="runs", show_default=True)
+def monitor_cc_command(cwd: str | None, timeout: float | None, runs_dir: str) -> int:
+    """Launch Claude Code and begin runtime observation."""
+
+    return _monitor_official("cc", cwd, timeout, runs_dir)
+
+
+@monitor.command("codex", cls=BriefHelpCommand)
+@click.option("--cwd", default=None)
+@click.option("--timeout", type=float, default=None)
+@click.option("--runs-dir", default="runs", show_default=True)
+def monitor_codex_command(cwd: str | None, timeout: float | None, runs_dir: str) -> int:
+    """Launch Codex CLI and begin runtime observation."""
+
+    return _monitor_official("codex", cwd, timeout, runs_dir)
 
 
 @cli.command("agents", cls=BriefHelpCommand)
@@ -194,74 +278,50 @@ def agents_command() -> int:
             if not error:
                 break
             ui.error(error)
-            ui.muted("Please choose another name.")
         command = click.prompt("\nLaunch Command (N/A if none)", default="N/A").strip()
         framework = Framework(name, custom_slug(name), "" if command.casefold() == "n/a" else command, official=False)
-    return _finish_configuration(framework, _observation_method())
+    result = _finish_configuration(framework, _observation_method())
+    _configure_visibility()
+    return result
 
 
 @cli.command("config", cls=BriefHelpCommand)
 def config_command() -> int:
     """Change an observation method or custom framework details."""
-    frameworks = list(OFFICIAL_FRAMEWORKS) + configured_frameworks()
+    if _choose("Critiqor Configuration", ["Visibility Settings", "Framework Settings"]) == 0:
+        current_visibility = configured_visibility()
+        ui.section("Current Visibility", current_visibility.title(), icon="◉")
+        access = load_config().get("active_dashboard_access", {})
+        if current_visibility == "shared" and isinstance(access, dict) and access.get("invite_code"):
+            ui.section("Active Invite Code", str(access["invite_code"]), icon="◆")
+        _configure_visibility()
+        return 0
     configured = load_config()["frameworks"]
-    frameworks = [item for item in frameworks if item.slug.casefold() in configured]
+    frameworks = [
+        item for item in list(OFFICIAL_FRAMEWORKS) + configured_frameworks()
+        if item.slug.casefold() in configured
+    ]
     if not frameworks:
         ui.warning("No configured frameworks.")
         ui.command("critiqor agents", "Start Here")
         return 1
     framework = frameworks[_choose("Select Configured Framework", [item.name for item in frameworks])]
-    if not framework.official:
-        action = _choose("Configure Custom Framework", ["Observation Method", "Framework Details"])
-        if action == 1:
-            old_slug = framework.slug
-            while True:
-                name = click.prompt("\nFramework Name", default=framework.name).strip()
-                error = custom_name_error(name, exclude_slug=old_slug)
-                if not error:
-                    break
-                ui.error(error)
-                ui.muted("Please choose another name.")
-            command = click.prompt("\nLaunch Command", default=framework.launch_command or "N/A").strip()
-            updated = Framework(
-                name, custom_slug(name), "" if command.casefold() == "n/a" else command,
-                framework.runtime_environment, official=False,
-            )
-            current = resolve_framework(old_slug)
-            method = current[1] if current else "launch_command"
-            update_framework(old_slug, updated, method)
-            ui.title("Configuration Complete")
-            ui.success("Framework updated")
-            ui.section("Framework", updated.name, icon="◈")
-            ui.section("Observation Method", method.replace("_", " ").title(), icon="◉")
-            ui.command(f"critiqor monitor {updated.name}")
-            return 0
-    return _finish_configuration(framework, _observation_method())
-
-
-@cli.command("monitor", cls=BriefHelpCommand)
-@click.argument("framework_name")
-@click.option("--cwd", default=None)
-@click.option("--timeout", type=float, default=None)
-@click.option("--runs-dir", default="runs", show_default=True)
-def monitor_command(framework_name: str, cwd: str | None, timeout: float | None, runs_dir: str) -> int:
-    """Launch and observe a configured agent framework."""
-    resolved = resolve_framework(framework_name)
-    if resolved is None:
-        ui.error(f'Framework "{framework_name}" is not configured.')
-        ui.command("critiqor agents", "Configure First")
-        return 2
-    framework, method = resolved
-    if method == "ide_extension":
-        _extension_instructions()
+    if not framework.official and _choose("Configure Custom Framework", ["Observation Method", "Framework Details"]) == 1:
+        old_slug = framework.slug
+        while True:
+            name = click.prompt("\nFramework Name", default=framework.name).strip()
+            error = custom_name_error(name, exclude_slug=old_slug)
+            if not error:
+                break
+            ui.error(error)
+        command = click.prompt("\nLaunch Command", default=framework.launch_command or "N/A").strip()
+        updated = Framework(name, custom_slug(name), "" if command.casefold() == "n/a" else command, framework.runtime_environment, False)
+        current = resolve_framework(old_slug)
+        method = current[1] if current else "launch_command"
+        update_framework(old_slug, updated, method)
+        ui.success("Framework updated")
         return 0
-    if method == "import_log":
-        path = _pick_log()
-        if not path:
-            ui.warning("No runtime log selected.")
-            return 0
-        return import_runtime_logs(path, framework, runs_dir)
-    return monitor_framework(MonitorFrameworkOptions(framework=framework, cwd=cwd, timeout=timeout, runs_dir=runs_dir))
+    return _finish_configuration(framework, _observation_method())
 
 
 @cli.command("finalize", cls=BriefHelpCommand)
@@ -269,12 +329,10 @@ def monitor_command(framework_name: str, cwd: str | None, timeout: float | None,
 @click.option("--no-dashboard", is_flag=True, help="Finalize without opening the local dashboard.")
 @click.option("--host", default="127.0.0.1", show_default=True, help="Local dashboard host.")
 @click.option("--port", type=int, default=0, show_default=True, help="Local dashboard port. Use 0 to choose an available port.")
-@click.option("--dashboard-url", default=None, help="Optional hosted dashboard URL. By default Critiqor opens the local dashboard.")
-@click.option("--ingest-url", default=None, help="Dashboard API ingest URL. Defaults to <dashboard-url>/api/runs/ingest.")
-def finalize_command(runs_dir: str, no_dashboard: bool, host: str, port: int, dashboard_url: str | None, ingest_url: str | None) -> int:
-    """Stop observation, generate diagnosis, and open the local dashboard."""
+def finalize_command(runs_dir: str, no_dashboard: bool, host: str, port: int) -> int:
+    """Stop observation, generate diagnosis, and open local dashboard."""
 
-    return finalize_observation(FinalizeOptions(runs_dir=runs_dir, no_dashboard=no_dashboard, host=host, port=port, dashboard_url=dashboard_url, ingest_url=ingest_url))
+    return finalize_observation(FinalizeOptions(runs_dir=runs_dir, no_dashboard=no_dashboard, host=host, port=port))
 
 
 @cli.command("dashboard", cls=BriefHelpCommand)
@@ -283,13 +341,10 @@ def finalize_command(runs_dir: str, no_dashboard: bool, host: str, port: int, da
 @click.option("--runs", default="runs", show_default=True, help="Directory containing finalized Critiqor run artifacts.")
 @click.option("--host", default="127.0.0.1", show_default=True, help="Dashboard host.")
 @click.option("--port", type=int, default=0, show_default=True, help="Dashboard port. Use 0 to choose an available port.")
-@click.option("--dashboard-url", default=None, help="Optional hosted dashboard URL. By default Critiqor opens the local dashboard.")
-@click.option("--ingest-url", default=None, help="Dashboard API ingest URL. Defaults to <dashboard-url>/api/runs/ingest.")
-def dashboard_command(run_id: str | None, events: str, runs: str, host: str, port: int, dashboard_url: str | None, ingest_url: str | None) -> int:
-    """Open the latest or selected diagnosis in the local dashboard."""
+def dashboard_command(run_id: str | None, events: str, runs: str, host: str, port: int) -> int:
+    """Open the latest or selected local diagnosis dashboard."""
 
-    options = DashboardOptions(events=events, runs=runs, host=host, port=port, run_id=run_id, dashboard_url=dashboard_url, ingest_url=ingest_url)
-    return open_hosted_dashboard(options) if dashboard_url or ingest_url else serve_local_dashboard(options)
+    return serve_local_dashboard(DashboardOptions(events=events, runs=runs, host=host, port=port, run_id=run_id))
 
 
 @cli.command("runs", cls=BriefHelpCommand)
@@ -298,6 +353,15 @@ def runs_command(runs_dir: str) -> int:
     """List completed evaluations with diagnosis summaries."""
 
     return list_runs(RunsOptions(runs_dir=runs_dir))
+
+
+@cli.command("doctor", cls=BriefHelpCommand)
+@click.option("--runs-dir", default="runs", show_default=True, help="Directory used for Critiqor run artifacts.")
+@click.option("--framework", default="openclaw", show_default=True, type=click.Choice(["openclaw"]))
+def doctor_command(runs_dir: str, framework: str) -> int:
+    """Check whether Critiqor is ready to monitor and evaluate an agent."""
+
+    return run_doctor(DoctorOptions(runs_dir=runs_dir, framework=framework))
 
 
 @cli.command("run", cls=BriefHelpCommand, context_settings={"ignore_unknown_options": True, "allow_extra_args": True})

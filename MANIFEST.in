@@ -2,13 +2,24 @@ include README.md
 include LICENSE
 include CHANGELOG.md
 recursive-include critiqor/clawhub/critiqor-openclaw *.js *.json
-recursive-include docs *.md
+include critiqor/core_engine_dashboard/package.json
+recursive-include critiqor/core_engine_dashboard/.output *.mjs *.js *.css *.json *.html *.png *.svg *.woff *.woff2
+prune critiqor/core_engine_dashboard/node_modules
+prune critiqor/core_engine_dashboard/src
+prune critiqor/core_engine_dashboard/scripts
+prune docs
 prune private_backend
+prune private
+prune summary
+prune research
+prune artifacts
+prune reports
 prune runs
 prune critiqor-test
 prune .critiqor
 prune tests
 prune experiments
+prune tools
 prune clawhub/*/reports
 exclude demo.py
 exclude capture-dashboard.mjs

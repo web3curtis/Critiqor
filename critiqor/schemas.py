@@ -1,4 +1,4 @@
-"""Schemas shared by the CLI, integrations, and local diagnosis pipeline."""
+"""Public Critiqor schemas shared by the CLI, integrations, and backend API."""
 
 from __future__ import annotations
 
@@ -56,7 +56,7 @@ class RuntimeEvent:
 
 @dataclass(frozen=True)
 class EvidenceSubmission:
-    """Normalized evidence supplied to a diagnosis implementation."""
+    """Public request body sent from the client to the private diagnosis backend."""
 
     run_id: str
     metadata: dict[str, Any]
@@ -75,7 +75,7 @@ class EvidenceSubmission:
 
 @dataclass(frozen=True)
 class DiagnosisResult:
-    """Normalized diagnosis payload."""
+    """Diagnosis payload returned by the private backend."""
 
     run_id: str
     payload: dict[str, Any]
@@ -84,3 +84,39 @@ class DiagnosisResult:
         result = dict(self.payload)
         result.setdefault("run_id", self.run_id)
         return result
+
+
+def validate_score(value: Any, field_name: str) -> list[str]:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return [f"{field_name} must be a number"]
+    if not 0 <= float(value) <= 100:
+        return [f"{field_name} must be between 0 and 100"]
+    return []
+
+
+def validate_diagnosis_payload(payload: Any) -> list[str]:
+    """Return strict structural errors for a diagnosis artifact."""
+
+    if not isinstance(payload, dict):
+        return ["diagnosis must be a JSON object"]
+    errors: list[str] = []
+    if not isinstance(payload.get("run_id"), str) or not payload.get("run_id"):
+        errors.append("run_id must be a non-empty string")
+    summary = payload.get("executive_summary")
+    if not isinstance(summary, dict):
+        errors.append("executive_summary must be an object")
+        return errors
+    errors.extend(validate_score(summary.get("trust_score"), "executive_summary.trust_score"))
+    confidence = summary.get("evaluation_confidence", payload.get("evaluation_confidence"))
+    if confidence is not None:
+        errors.extend(validate_score(confidence, "evaluation_confidence"))
+    readiness = summary.get("readiness_level")
+    if readiness not in {
+        "safe_to_deploy",
+        "ready_for_runtime",
+        "review_recommended",
+        "unsafe_for_production",
+        "insufficient_evidence",
+    }:
+        errors.append("executive_summary.readiness_level is invalid")
+    return errors

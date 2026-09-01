@@ -1,10 +1,19 @@
 """Critiqor public client package.
 
-Critiqor collects runtime evidence, generates local diagnoses, and launches the
-dashboard without requiring an external service.
+The public package collects OpenClaw runtime evidence, manages sessions, submits
+evidence to a private Critiqor backend, and launches the dashboard. Proprietary
+diagnosis, scoring, reliability, benchmark, and leaderboard engines are not
+included in this distribution.
 """
 
-from .diagnosis import generate_diagnosis
+from .backend import (
+    BackendConfig,
+    BackendConfigurationError,
+    BackendResponseError,
+    DEFAULT_BACKEND_URL,
+    backend_configuration_hint,
+    submit_evidence,
+)
 from .openclaw import (
     OpenClawRuntimeObserver,
     capture_process_stream,
@@ -36,9 +45,16 @@ from .session import (
     paths_for,
 )
 
+__version__ = "0.2.18"
+
 __all__ = [
+    "__version__",
     "ABORTED",
+    "BackendConfig",
+    "BackendConfigurationError",
+    "BackendResponseError",
     "COMPLETED",
+    "DEFAULT_BACKEND_URL",
     "DiagnosisResult",
     "EvidenceLevel",
     "EvidenceSubmission",
@@ -52,6 +68,7 @@ __all__ = [
     "Visibility",
     "append_event_to_active",
     "append_event_to_run",
+    "backend_configuration_hint",
     "capture_process_stream",
     "create_session",
     "finalize_session",
@@ -61,5 +78,5 @@ __all__ = [
     "monitor_openclaw_process",
     "parse_process_line",
     "paths_for",
-    "generate_diagnosis",
+    "submit_evidence",
 ]

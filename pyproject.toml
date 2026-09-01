@@ -4,14 +4,14 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "critiqor"
-version = "0.2.4"
-description = "Runtime reliability intelligence for AI agents."
+version = "0.2.18"
+description = "Runtime intelligence CLI for reviewing AI agent reliability."
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "Critiqor Contributors" }]
 license = "MIT"
 keywords = ["ai", "agents", "openclaw", "observability", "reliability", "diagnosis"]
-dependencies = ["click>=8.1"]
+dependencies = ["click>=8.1", "cryptography>=43"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -25,12 +25,18 @@ classifiers = [
 
 [tool.setuptools.packages.find]
 include = ["critiqor*"]
+exclude = ["critiqor.core_engine_dashboard*"]
 
 [tool.setuptools.package-data]
-critiqor = ["clawhub/critiqor-openclaw/*.js", "clawhub/critiqor-openclaw/*.json"]
+critiqor = [
+    "clawhub/critiqor-openclaw/*.js",
+    "clawhub/critiqor-openclaw/*.json",
+    "core_engine_dashboard/package.json",
+    "core_engine_dashboard/.output/**/*",
+]
 
 [project.scripts]
 critiqor = "critiqor.cli:main"
 
 [tool.setuptools.exclude-package-data]
-"*" = ["runs/*", "tests/*"]
+"*" = ["private_backend/*", "runs/*", "tests/*"]

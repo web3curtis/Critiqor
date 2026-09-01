@@ -8,8 +8,14 @@ dist/
 build/
 *.egg-info/
 .env
+.DS_Store
 .critiqor/
 runs/
 critiqor-test/
-private_backend/
+private_backend/*
+!private_backend/webmcp.py
 clawhub/*/reports/
+critiqor/core_engine_dashboard/node_modules/
+experiments/venv-*/
+experiments/**/.critiqor-session.lock
+experiments/**/.critiqor_dashboard/

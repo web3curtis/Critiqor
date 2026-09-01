@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync, existsSync, readFileSync } from "node:fs";
+import { appendFileSync, mkdirSync, writeFileSync, existsSync, readFileSync, renameSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { definePluginEntry } from "openclaw/plugin-sdk/plugin-entry";
@@ -51,7 +51,8 @@ function resolveSessionPaths() {
     runsDir,
     runId,
     sessionDir,
-    sessionJson: path.join(sessionDir, "session.json")
+    sessionJson: path.join(sessionDir, "session.json"),
+    eventsJsonl: path.join(sessionDir, "events.jsonl")
   };
 }
 
@@ -67,8 +68,7 @@ function ensureSessionFile() {
           run_id: paths.runId,
           schema_version: "critiqor.session.v1",
           created_at: nowIso(),
-          events_file: "session.json",
-          events: [],
+          events_file: "events.jsonl",
           metrics: {}
         },
         null,
@@ -83,7 +83,13 @@ function ensureSessionFile() {
 function scrub(value, depth = 0) {
   if (depth > 8) return "[depth_limit]";
   if (value === undefined) return null;
-  if (value === null || typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
+  if (typeof value === "string") {
+    return value
+      .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi, "[REDACTED]")
+      .replace(/\bsk-[A-Za-z0-9_-]{12,}\b/g, "[REDACTED]")
+      .slice(0, 32768);
+  }
+  if (value === null || typeof value === "number" || typeof value === "boolean") {
     return value;
   }
   if (Array.isArray(value)) return value.map((item) => scrub(item, depth + 1));
@@ -91,7 +97,11 @@ function scrub(value, depth = 0) {
     const out = {};
     for (const [key, item] of Object.entries(value)) {
       if (typeof item === "function") continue;
-      out[key] = scrub(item, depth + 1);
+      if (/(authorization|api[_-]?key|access[_-]?token|refresh[_-]?token|client[_-]?secret|password|passwd|private[_-]?key|cookie|session[_-]?token)/i.test(key)) {
+        out[key] = "[REDACTED]";
+      } else {
+        out[key] = scrub(item, depth + 1);
+      }
     }
     return out;
   }
@@ -146,6 +156,7 @@ function appendEvidence(eventType, sourceLayer, event) {
 }
 
 function updateSessionSummary(paths, event) {
+  appendFileSync(paths.eventsJsonl, `${JSON.stringify(event)}\n`, { encoding: "utf8", flush: true });
   let session;
   try {
     session = JSON.parse(readFileSync(paths.sessionJson, "utf8"));
@@ -155,8 +166,7 @@ function updateSessionSummary(paths, event) {
       run_id: paths.runId,
       schema_version: "critiqor.session.v1",
       created_at: nowIso(),
-      events_file: "session.json",
-      events: [],
+      events_file: "events.jsonl",
       metrics: {}
     };
   }
@@ -175,9 +185,11 @@ function updateSessionSummary(paths, event) {
 
   session.metrics = metrics;
   session.updated_at = event.timestamp;
-  session.events = Array.isArray(session.events) ? session.events : [];
-  session.events.push(event);
-  writeFileSync(paths.sessionJson, JSON.stringify(session, null, 2), "utf8");
+  session.events_file = "events.jsonl";
+  delete session.events;
+  const tempPath = `${paths.sessionJson}.tmp`;
+  writeFileSync(tempPath, JSON.stringify(session, null, 2), "utf8");
+  renameSync(tempPath, paths.sessionJson);
 }
 
 function safeSubscribe(api, eventType, sourceLayer) {

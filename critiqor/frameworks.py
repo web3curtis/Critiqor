@@ -27,6 +27,7 @@ OFFICIAL_FRAMEWORKS = (
 
 RESERVED_NAMES = {"openclaw", "claude code", "claude", "codex", "codex cli", "cc"}
 OBSERVATION_METHODS = ("launch_command", "ide_extension", "import_log")
+VISIBILITY_OPTIONS = ("private", "shared", "anonymous", "public")
 
 
 def config_path() -> Path:
@@ -60,6 +61,37 @@ def save_framework(framework: Framework, observation_method: str, path: Path | N
     item["observation_method"] = observation_method
     payload["frameworks"][framework.slug.casefold()] = item
     payload["selected_framework"] = framework.slug
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_suffix(".tmp")
+    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.replace(destination)
+
+
+def configured_visibility(path: Path | None = None) -> str:
+    value = str(load_config(path).get("visibility", "private")).casefold()
+    return value if value in VISIBILITY_OPTIONS else "private"
+
+
+def save_visibility(visibility: str, path: Path | None = None) -> None:
+    value = visibility.casefold()
+    if value not in VISIBILITY_OPTIONS:
+        raise ValueError(f"Unsupported visibility: {visibility}")
+    destination = path or config_path()
+    payload = load_config(destination)
+    payload["visibility"] = value
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_suffix(".tmp")
+    temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    temporary.replace(destination)
+
+
+def save_launch_credential(visibility: str, credential: str, path: Path | None = None) -> None:
+    destination = path or config_path()
+    payload = load_config(destination)
+    payload["active_dashboard_access"] = {
+        "visibility": visibility,
+        "invite_code": credential if visibility == "shared" else "",
+    }
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_suffix(".tmp")
     temporary.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
