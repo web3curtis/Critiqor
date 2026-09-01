@@ -13,7 +13,6 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://webmcp-reliability.terrence-qiu-7311.chatgpt.site'),
   title: 'Critiqor Lab — Interactive WebMCP Reliability Experiment',
   description: 'Run an interactive replay of matched raw and playbook-improved WebMCP experiments, then inspect Critiqor audits and compare the results.',
   openGraph: {

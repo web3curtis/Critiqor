@@ -268,15 +268,6 @@ For the most reliable terminal-agent monitoring on Windows, use WSL2.
 
 ---
 
-## Links
-
-- Website: https://critiqor-runtime-insight.vercel.app/
-- Documentation: https://critiqor-71f5274a.mintlify.site/
-- PyPI: https://pypi.org/project/critiqor/
-- Source: https://github.com/web3curtis/Critiqor
-
----
-
 ## License
 
 MIT
