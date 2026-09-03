@@ -13,18 +13,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Critiqor Lab — Interactive WebMCP Reliability Experiment',
-  description: 'Run an interactive replay of matched raw and playbook-improved WebMCP experiments, then inspect Critiqor audits and compare the results.',
+  title: 'Critiqor × Crema — Genuine Reliability Experiment',
+  description: 'Use the genuine Crema target and anonymous Critiqor dashboards, then inspect the exact method, findings, and five-pair comparison.',
   openGraph: {
-    title: 'Critiqor Lab — Raw vs Improved WebMCP',
-    description: 'Replay the experiment. Inspect both audits. Compare 2 effects with 1.',
-    images: [{ url: '/og.png', width: 1731, height: 909, alt: 'Raw WebMCP run with two effects compared with an improved run with one effect' }],
+    title: 'Critiqor × Crema — Genuine Reliability Experiment',
+    description: 'Five matched WebMCP pairs: blind redispatch and duplicate cart peaks fell from 2/5 to 0/5 while task success stayed 5/5.',
+    images: [],
   },
   twitter: {
-    card: 'summary_large_image',
-    title: 'Critiqor Lab — Raw vs Improved WebMCP',
-    description: 'Replay the experiment. Inspect both audits. Compare 2 effects with 1.',
-    images: ['/og.png'],
+    card: 'summary',
+    title: 'Critiqor × Crema — Genuine Reliability Experiment',
+    description: 'Five matched WebMCP pairs: blind redispatch and duplicate cart peaks fell from 2/5 to 0/5 while task success stayed 5/5.',
+    images: [],
   },
 };
 

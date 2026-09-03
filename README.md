@@ -40,6 +40,15 @@ for the [WebMCP Hackathon](https://webmcp.devpost.com/).
 
 ## WebMCP Hackathon
 
+**Live judge experience:** [Open the Critiqor × Crema experiment](https://critiqor-crema-reliability.terrence-qiu-7311.chatgpt.site/?agent-playback=1)
+
+No login, local service, private path, API key, or checkout is required. In a
+WebMCP-capable browser, ask the agent: **“Show the improved run, then explain
+why it is safer.”** The page exposes five typed WebMCP tools for inspecting the
+verified experiment, reading its playbook and method, and visibly replaying
+either experiment arm. Humans can inspect the same evidence, genuine Crema
+target, and Critiqor dashboards side by side.
+
 **Research question:** Which mechanisms that helped MCP become more production-ready can be adapted to improve WebMCP reliability?
 
 Critiqor already answered whether an agent run can be trusted, why, and whether a later run improved. The hackathon work extends that same observe → diagnose → improve loop to WebMCP, instead of shipping a separate product.
@@ -53,6 +62,18 @@ When a run includes WebMCP events, Critiqor now:
 - compares a matched later run and reports whether the same failure recurred or was resolved
 
 The first implementation focuses on one failure: retrying a consequential WebMCP action after an ambiguous outcome. A raw agent can duplicate an effect. After the playbook, the same task reconciles first and stops at one effect.
+
+### Work added during the submission period
+
+The underlying Critiqor product predates the challenge. The challenge-specific
+work, added from August 25 through September 3, 2026, is the WebMCP browser
+monitor, normalized runtime evidence, controlled lost-response fault,
+reconciliation checks, matched Crema experiment, public anonymized dashboards,
+five page tools, and the judge-facing experiment site. The implementation and
+reproduction instructions live in
+[`explorations/webmcp-reliability`](explorations/webmcp-reliability), with the
+runtime adapter documented in
+[`docs/webmcp-browser-monitor.md`](docs/webmcp-browser-monitor.md).
 
 ---
 
@@ -75,7 +96,7 @@ Critiqor gives developers a practical review layer for answering:
 
 ## Supported Agent Frameworks
 
-Critiqor 0.2.18 supports framework-based monitoring for:
+Critiqor 0.2.19 supports framework-based monitoring for:
 
 - OpenClaw
 - Claude Code
@@ -126,6 +147,7 @@ Use the monitor command for your framework:
 critiqor monitor openclaw
 critiqor monitor cc
 critiqor monitor codex
+critiqor monitor webmcp --help
 ```
 
 Custom frameworks can be launched through the command you configure in the
@@ -180,6 +202,7 @@ Core commands:
 - `critiqor monitor openclaw` - launch OpenClaw and begin runtime observation
 - `critiqor monitor cc` - launch Claude Code and begin runtime observation
 - `critiqor monitor codex` - launch Codex CLI and begin runtime observation
+- `critiqor monitor webmcp` - observe live WebMCP activity in one Chrome tab
 - `critiqor finalize` - stop observation, generate diagnosis, and open dashboard
 - `critiqor dashboard [run_id]` - open the latest or selected diagnosis dashboard
 - `critiqor runs` - list completed evaluations with summaries
@@ -216,6 +239,79 @@ and team reviews can match the environment where developers are working.
 ![Critiqor Evidence Explorer](assets/screenshots/dashboard-evidence-explorer.png)
 
 ---
+
+## Live WebMCP Browser Monitoring
+
+Critiqor 0.2.19 can observe browser-native WebMCP discovery, invocation, outcome,
+reconciliation, and authoritative-state events in real time through Chrome's
+remote-debugging endpoint. It does not infer a failed consequential action was
+uncommitted: an opaque error, cancellation, or intentionally lost response is
+recorded as `unknown` until target-owned state reconciles it.
+
+Start a separate Chrome profile with remote debugging enabled. For example, on
+macOS:
+
+```bash
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
+  --remote-debugging-port=9222 \
+  --user-data-dir=/tmp/critiqor-chrome
+```
+
+Open the WebMCP site in that Chrome instance, then attach Critiqor with the
+endpoint stated explicitly:
+
+```bash
+critiqor monitor webmcp \
+  --cdp-url http://127.0.0.1:9222 \
+  --target-url http://127.0.0.1:3000 \
+  --task-id add-one-item \
+  --scenario-id lost-response \
+  --consequential-tool add_to_cart \
+  --reconciliation-tool get_cart \
+  --authoritative-tool get_cart
+```
+
+`CRITIQOR_CDP_URL` can supply the endpoint instead of `--cdp-url`. The target
+URL must match exactly one open page by URL prefix. Critiqor does not enable
+remote debugging in an arbitrary Chrome process; Chrome must expose or approve
+the endpoint first. Press Ctrl-C after the browser task, then run `critiqor
+finalize` to generate the diagnosis and playbook.
+
+Fault injection is optional and deliberately narrow. For the Crema cart
+mutation experiment, bind the one-shot response fault to the exact URL, HTTP
+method, and consequential WebMCP tool:
+
+```bash
+critiqor monitor webmcp \
+  --cdp-url http://127.0.0.1:9222 \
+  --target-url http://127.0.0.1:3000 \
+  --task-id add-one-bianca \
+  --scenario-id commit-lost-response \
+  --consequential-tool add_to_cart \
+  --reconciliation-tool get_cart \
+  --authoritative-tool get_cart \
+  --allowed-api-origin http://localhost:3001 \
+  --fault-response-url http://localhost:3001/operations/add-to-cart \
+  --fault-method POST \
+  --fault-tool add_to_cart \
+  --authoritative-state-url http://localhost:3001/operations/get-cart
+```
+
+The adapter injects at most once and only when exactly one matching tool
+invocation is pending. It refuses an ambiguous concurrent correlation. See
+`docs/webmcp-browser-monitor.md` for the setup and evidence contract.
+
+## What's New in 0.2.19
+
+Critiqor 0.2.19 adds a public Chrome/WebMCP runtime adapter.
+
+- `critiqor monitor webmcp` connects to an explicit Chrome remote-debugging
+  endpoint and validates WebMCP/CDP support before creating a run.
+- Live registry, dispatch, outcome, reconciliation, and authoritative-effect
+  evidence is normalized into Critiqor's WebMCP event vocabulary.
+- Optional response-stage fault injection supports controlled lost-response
+  experiments without claiming that an ambiguous action failed safely.
+- `websocket-client` is now installed as a runtime dependency.
 
 ## What's New in 0.2.18
 

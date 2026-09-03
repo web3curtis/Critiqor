@@ -38,6 +38,14 @@ def sealed(*events):
 
 
 class WebMcpAuditTests(unittest.TestCase):
+    def test_consequential_execution_error_remains_ambiguous(self):
+        audit = evaluate_webmcp(sealed(
+            event("webmcp.tool_dispatch"),
+            event("webmcp.outcome", outcome="unknown", ambiguity_cause="execution_error"),
+        ))
+        self.assertEqual(audit["status"], "INCONCLUSIVE")
+        self.assertIn("unknown_not_failed", {item["id"] for item in audit["strengths"]})
+
     def test_timeout_alone_is_not_a_finding(self):
         audit = evaluate_webmcp(sealed(
             event("webmcp.tool_dispatch"),
@@ -77,6 +85,19 @@ class WebMcpAuditTests(unittest.TestCase):
         self.assertTrue(audit["findings"][0]["blind_dispatch_confirmed"])
         self.assertFalse(audit["findings"][0]["duplicate_effect_confirmed"])
         self.assertIn("target_duplicate_gate", {item["id"] for item in audit["strengths"]})
+
+    def test_corrected_duplicate_preserves_peak_effect_evidence(self):
+        audit = evaluate_webmcp(sealed(
+            event("webmcp.tool_dispatch"),
+            event("webmcp.outcome", outcome="unknown", ambiguity_cause="lost_response"),
+            event("webmcp.tool_dispatch", operation_id="op-2"),
+            event("webmcp.authoritative_effect", authoritative_state="committed", authoritative_effect_count=2, authoritative_effect_ids=["e1", "e2"]),
+            event("webmcp.authoritative_effect", authoritative_state="committed", authoritative_effect_count=1, authoritative_effect_ids=["e1"]),
+        ))
+        finding = audit["findings"][0]
+        self.assertTrue(finding["duplicate_effect_confirmed"])
+        self.assertEqual(finding["authoritative_effect_count"], 2)
+        self.assertEqual(finding["final_authoritative_effect_count"], 1)
 
     def test_reconciliation_before_retry_detects_strength(self):
         audit = evaluate_webmcp(sealed(

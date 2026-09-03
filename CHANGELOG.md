@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.2.19 - 2026-09-03
+
+Chrome/WebMCP live observation release.
+
+- Added `critiqor monitor webmcp` for real-time WebMCP registry, invocation,
+  outcome, reconciliation, and authoritative-effect evidence from an explicitly
+  configured Chrome remote-debugging endpoint.
+- Added externally controlled, one-shot response-stage fault injection bound to
+  an exact mutation URL, HTTP method, and consequential tool. Concurrently
+  ambiguous correlations are refused.
+- Kept consequential errors and cancellations `unknown` until authoritative
+  application state reconciles the effect.
+- Invalidated stale WebMCP discovery across top-level navigation and surfaced
+  unexpected debugger disconnects.
+- Added startup validation so unavailable WebMCP/CDP domains fail before a
+  Critiqor session is created.
+- Added `websocket-client>=1.8` as a package dependency and documented the
+  dedicated Chrome profile workflow.
+
 ## 0.2.18 - 2026-09-01
 
 WebMCP runtime evaluation and dashboard review release.

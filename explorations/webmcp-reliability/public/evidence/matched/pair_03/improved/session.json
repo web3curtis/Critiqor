@@ -1,0 +1,1106 @@
+{
+  "artifacts": {
+    "diagnosis": {
+      "path": "[local source path redacted]/diagnosis.json",
+      "relative_path": "diagnosis.json"
+    },
+    "improvement_playbook": {
+      "path": "[local source path redacted]/improvement_playbook.md",
+      "relative_path": "improvement_playbook.md"
+    },
+    "session": {
+      "path": "[local source path redacted]/session.json",
+      "relative_path": "session.json"
+    }
+  },
+  "audit_summary": {
+    "authoritative_effect_count": 1,
+    "confidence": "confirmed",
+    "display_status": "Handled safely",
+    "duplicate_effect_count": 0,
+    "finding_count": 0,
+    "framework": "webmcp",
+    "status": "PASSED"
+  },
+  "events": [
+    {
+      "event": "state_transition",
+      "event_hash": "1780b05c823a6a8e563c5c7470f92a4f0f3225f3d70d382e3f3c585978c08246",
+      "event_type": "state_transition",
+      "message": "Runtime observer attached",
+      "previous_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+      "privacy": {
+        "redaction_count": 0,
+        "truncation_count": 0
+      },
+      "sequence_id": 1,
+      "state": "MONITORING",
+      "timestamp": "2026-09-03T02:44:28.333613+00:00"
+    },
+    {
+      "event": "webmcp.observer_ready",
+      "event_hash": "aac8a64764c831218e58f3f99dc0cdfa04911978a08897f2a1fc296dcf9a443d",
+      "event_type": "webmcp.observer_ready",
+      "payload": {
+        "cdp_url": "http://127.0.0.1:9222",
+        "message": "Chrome accepted the WebMCP observer domains; live collection is active.",
+        "scenario_id": "commit-lost-response",
+        "target_id": "DD6FAD6ABC860192915482FE7F36A019",
+        "target_origin": "http://127.0.0.1:3000",
+        "task_id": "add-one-bianca"
+      },
+      "previous_hash": "1780b05c823a6a8e563c5c7470f92a4f0f3225f3d70d382e3f3c585978c08246",
+      "privacy": {
+        "redaction_count": 0,
+        "truncation_count": 0
+      },
+      "sequence_id": 2,
+      "source_layer": "chrome_cdp_webmcp",
+      "timestamp": "2026-09-03T02:44:28.334549+00:00"
+    },
+    {
+      "event": "webmcp.discovery",
+      "event_hash": "729eb0e7f3ba0992f8c1a064e51e00aadd2d8eaad0cb47b48faecae60b9b02ec",
+      "event_type": "webmcp.discovery",
+      "payload": {
+        "epoch": 1,
+        "fresh": true,
+        "message": "Observed 16 registered WebMCP tool(s).",
+        "reobserved": false,
+        "scenario_id": "commit-lost-response",
+        "schema_version": "critiqor.webmcp.event.v1",
+        "target_origin": "http://127.0.0.1:3000",
+        "task_id": "add-one-bianca",
+        "tool_names": [
+          "add_to_cart",
+          "apply_coupon",
+          "check_compatibility",
+          "checkout",
+          "clear_highlights",
+          "compare_products",
+          "get_cart",
+          "get_compare_list",
+          "get_my_coupons",
+          "get_my_gear",
+          "get_product_details",
+          "highlight_differences",
+          "remove_from_cart",
+          "search_products",
+          "set_compare_list",
+          "update_cart_quantity"
+        ],
+        "tools": [
+          {
+            "annotations": {
+              "readOnly": false,
+              "untrustedContent": false
+            },
+            "description": "Add a product to the cart. If the product has color options and none is given, the first option is used and reported back. Returns the full updated cart.",
+            "inputSchema": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "description": "Color choice, for products with color options. If omitted, the first option is used and reported back.",
+                  "type": "string"
+                },
+                "quantity": {
+                  "description": "How many to add (default 1).",
+                  "maximum": 9,
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                "slug": {
+                  "description": "Slug of the product to add.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "slug"
+              ],
+              "type": "object"
+            },
+            "name": "add_to_cart"
+          },
+          {
+            "annotations": {
+              "readOnly": false,
+              "untrustedContent": false
+            },
+            "description": "Apply one of the user's coupon codes to the cart. Returns the full updated cart including the discount.",
+            "inputSchema": {
+              "additionalProperties": false,
+              "properties": {
+                "code": {
+                  "description": "Coupon code, e.g. from get_my_coupons.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "code"
+              ],
+              "type": "object"
+            },
+            "name": "apply_coupon"
+          },
+          {
+            "annotations": {
+              "readOnly": true,
+              "untrustedContent": false
+            },
+            "description": "Check whether a product works with the user's existing gear (default) or with specific products. Returns per-item COMPATIBLE / INCOMPATIBLE / UNKNOWN / NOT_APPLICABLE with a reason and, for incompatibilities, the slug of a product that fixes it. Always call this for each machine before recommending one.",
+            "inputSchema": {
+              "additionalProperties": false,
+              "properties": {
+                "against_slugs": {
+                  "description": "Optional: check against these specific product slugs instead of everything the user owns.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "candidate_slug": {
+                  "description": "Slug of the product you're considering buying.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "candidate_slug"
+              ],
+              "type": "object"
+            },
+            "name": "check_compatibility"
+          },
+          {
+            "annotations": {
+              "readOnly": false,
+              "untrustedContent": false
+            },
+            "description": "Place the order for everything in the cart. Irreversible. Only call when the user explicitly asks to buy / check out / place the order.",
+            "inputSchema": {
+              "additionalProperties": false,
+              "properties": {},
+              "type": "object"
+            },
+            "name": "checkout"
+          },
+          {
+            "annotations": {
+              "readOnly": false,
+              "untrustedContent": false
+            },
+            "description": "Remove highlighting from the Compare view.",
+            "inputSchema": {
+              "additionalProperties": false,
+              "properties": {},
+              "type": "object"
+            },
+            "name": "clear_highlights"
+          },
+          {
+            "annotations": {
+              "readOnly": true,
+              "untrustedContent": false
+            },
+            "description": "Side-by-side spec matrix for 2–3 products. Each row has a `differs` flag; focus on rows where `differs` is true.",
+            "inputSchema": {
+              "additionalProperties": false,
+              "properties": {
+                "slugs": {
+                  "description": "2–3 product slugs to compare side by side.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 3,
+                  "minItems": 2,
+                  "type": "array"
+                }
+              },
+              "required": [
+                "slugs"
+              ],
+              "type": "object"
+            },
+            "name": "compare_products"
+          },
+          {
+            "annotations": {
+              "readOnly": true,
+              "untrustedContent": false
+            },
+            "description": "The user's current cart: lines with color and quantity, subtotal, applied coupon and total.",
+            "inputSchema": {
+              "additionalProperties": false,
+              "properties": {},
+              "type": "object"
+            },
+            "name": "get_cart"
+          },
+          {
+            "annotations": {
+              "readOnly": true,
+              "untrustedContent": false
+            },
+            "description": "The products the user currently has open in the Compare view. Call this first when the user says 'these two' or 'which one'.",
+            "inputSchema": {
+              "additionalProperties": false,
+              "properties": {},
+              "type": "object"
+            },
+            "name": "get_compare_list"
+          },
+          {
+            "annotations": {
+              "readOnly": true,
+              "untrustedContent": false
+            },
+            "description": "Discount codes available to this user. Call before apply_coupon.",
+            "inputSchema": {
+              "additionalProperties": false,
+              "properties": {},
+              "type": "object"
+            },
+            "name": "get_my_coupons"
+          },
+          {
+            "annotations": {
+              "readOnly": true,
+              "untrustedContent": false
+            },
+            "description": "Everything the user has previously bought from this store, with purchase dates. Use it to check what they already own before recommending anything.",
+            "inputSchema": {
+              "additionalProperties": false,
+              "properties": {},
+              "type": "object"
+            },
+            "name": "get_my_gear"
+          },
+          {
+            "annotations": {
+              "readOnly": true,
+              "untrustedContent": false
+            },
+            "description": "Full specification sheet for one product, including fields not shown on the product page, and the source the specs came from.",
+            "inputSchema": {
+              "additionalProperties": false,
+              "properties": {
+                "slug": {
+                  "description": "The product's slug, as returned by search_products.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "slug"
+              ],
+              "type": "object"
+            },
+            "name": "get_product_details"
+          },
+          {
+            "annotations": {
+              "readOnly": false,
+              "untrustedContent": false
+            },
+            "description": "Visually highlight specific rows in the user's Compare view and dim the rest, so they can see why you recommend what you recommend. Use the `key` values from compare_products. Optional `note` is shown above the table. Call this when you've decided which specs matter for the user's needs.",
+            "inputSchema": {
+              "additionalProperties": false,
+              "properties": {
+                "note": {
+                  "description": "Optional one-sentence explanation shown to the user above the table.",
+                  "type": "string"
+                },
+                "spec_keys": {
+                  "description": "The spec row keys to highlight — use the `key` values returned by compare_products.",
+                  "items": {
+                    "enum": [
+                      "boilerConfig",
+                      "brewBoilerL",
+                      "groupType",
+                      "portafilterFit",
+                      "basketMm",
+                      "pid",
+                      "preInfusion",
+                      "flowControl",
+                      "pumpType",
+                      "brewPressureGauge",
+                      "shotTimer",
+                      "steamBoilerL",
+                      "simultaneousBrewSteam",
+                      "steamWand",
+                      "hotWaterSpout",
+                      "heatUpMinutes",
+                      "widthCm",
+                      "depthCm",
+                      "heightCm",
+                      "weightKg",
+                      "waterTankL",
+                      "waterTankPosition",
+                      "plumbable",
+                      "noiseDb",
+                      "wattage",
+                      "voltage",
+                      "cupClearanceCm",
+                      "dripTray",
+                      "ecoMode",
+                      "autoOff",
+                      "appControl",
+                      "caseMaterial",
+                      "boilerMaterial",
+                      "powerCableM",
+                      "display",
+                      "warrantyYears",
+                      "colorOptions",
+                      "madeIn",
+                      "certification",
+                      "priceEur"
+                    ],
+                    "type": "string"
+                  },
+                  "minItems": 1,
+                  "type": "array"
+                }
+              },
+              "required": [
+                "spec_keys"
+              ],
+              "type": "object"
+            },
+            "name": "highlight_differences"
+          },
+          {
+            "annotations": {
+              "readOnly": false,
+              "untrustedContent": false
+            },
+            "description": "Remove a product from the cart. Returns the full updated cart.",
+            "inputSchema": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "description": "Color of the cart line, when the product is in the cart in more than one color.",
+                  "type": "string"
+                },
+                "slug": {
+                  "description": "Slug of the product in the cart.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "slug"
+              ],
+              "type": "object"
+            },
+            "name": "remove_from_cart"
+          },
+          {
+            "annotations": {
+              "readOnly": true,
+              "untrustedContent": false
+            },
+            "description": "Search the store catalog by free text and/or category. Returns product slugs, names, prices and key compatibility fields. Use the returned slugs with other tools.",
+            "inputSchema": {
+              "additionalProperties": false,
+              "properties": {
+                "category": {
+                  "description": "Filter to one product category.",
+                  "enum": [
+                    "MACHINE",
+                    "GRINDER",
+                    "PORTAFILTER",
+                    "BASKET",
+                    "TAMPER",
+                    "PUCK_SCREEN",
+                    "DOSING_FUNNEL",
+                    "WDT_TOOL",
+                    "WATER_FILTER",
+                    "ACCESSORY"
+                  ],
+                  "type": "string"
+                },
+                "query": {
+                  "description": "Free-text search over product names, brands and descriptions.",
+                  "type": "string"
+                }
+              },
+              "type": "object"
+            },
+            "name": "search_products"
+          },
+          {
+            "annotations": {
+              "readOnly": false,
+              "untrustedContent": false
+            },
+            "description": "Replace the products shown in the Compare view.",
+            "inputSchema": {
+              "additionalProperties": false,
+              "properties": {
+                "slugs": {
+                  "description": "0–3 product slugs to show in the Compare view.",
+                  "items": {
+                    "type": "string"
+                  },
+                  "maxItems": 3,
+                  "type": "array"
+                }
+              },
+              "required": [
+                "slugs"
+              ],
+              "type": "object"
+            },
+            "name": "set_compare_list"
+          },
+          {
+            "annotations": {
+              "readOnly": false,
+              "untrustedContent": false
+            },
+            "description": "Change the quantity of a cart line (0 removes it). Returns the full updated cart.",
+            "inputSchema": {
+              "additionalProperties": false,
+              "properties": {
+                "color": {
+                  "description": "Color of the cart line, when the product is in the cart in more than one color.",
+                  "type": "string"
+                },
+                "quantity": {
+                  "description": "New quantity; 0 removes the line.",
+                  "maximum": 9,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "slug": {
+                  "description": "Slug of the product in the cart.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "slug",
+                "quantity"
+              ],
+              "type": "object"
+            },
+            "name": "update_cart_quantity"
+          }
+        ]
+      },
+      "previous_hash": "aac8a64764c831218e58f3f99dc0cdfa04911978a08897f2a1fc296dcf9a443d",
+      "privacy": {
+        "redaction_count": 0,
+        "truncation_count": 0
+      },
+      "sequence_id": 3,
+      "source_layer": "chrome_cdp_webmcp",
+      "timestamp": "2026-09-03T02:44:28.335200+00:00"
+    },
+    {
+      "event": "webmcp.tool_dispatch",
+      "event_hash": "f31ec2fdba2eef982997a24a1d87fee796135698f240ced8086ebdf0c3039ce2",
+      "event_type": "webmcp.tool_dispatch",
+      "payload": {
+        "collector_event_id": "cdp:E3D2A8C1A355BA7D4FD7E88DC564853E:dispatch",
+        "consequence_class": "read_only",
+        "dispatch_ordinal": 1,
+        "input": {},
+        "intent": {
+          "fingerprint": "sha256:86bdec300c22c5d5661164d4dce0cd1b7c76ea9ee187d20fc511b9685bc76104",
+          "normalization_version": "critiqor.webmcp.intent.v1"
+        },
+        "intent_fingerprint": "sha256:86bdec300c22c5d5661164d4dce0cd1b7c76ea9ee187d20fc511b9685bc76104",
+        "message": "Chrome invoked WebMCP tool get_cart.",
+        "operation_id": "cdp:E3D2A8C1A355BA7D4FD7E88DC564853E",
+        "scenario_id": "commit-lost-response",
+        "schema_version": "critiqor.webmcp.event.v1",
+        "target_origin": "http://127.0.0.1:3000",
+        "task_id": "add-one-bianca",
+        "tool": {
+          "name": "get_cart",
+          "namespace": "document.modelContext",
+          "version": "experimental"
+        },
+        "tool_name": "get_cart"
+      },
+      "previous_hash": "729eb0e7f3ba0992f8c1a064e51e00aadd2d8eaad0cb47b48faecae60b9b02ec",
+      "privacy": {
+        "redaction_count": 0,
+        "truncation_count": 0
+      },
+      "sequence_id": 4,
+      "source_layer": "chrome_cdp_webmcp",
+      "timestamp": "2026-09-03T02:45:04.194656+00:00"
+    },
+    {
+      "event": "webmcp.outcome",
+      "event_hash": "bfc7d9b03e79b4eeccd726baa03c2e1b4274f9ea411ebb497422a2ea6310a1d5",
+      "event_type": "webmcp.outcome",
+      "payload": {
+        "browser_status": "Completed",
+        "collector_event_id": "cdp:E3D2A8C1A355BA7D4FD7E88DC564853E:outcome",
+        "consequence_class": "read_only",
+        "error": null,
+        "intent": {
+          "fingerprint": "sha256:86bdec300c22c5d5661164d4dce0cd1b7c76ea9ee187d20fc511b9685bc76104"
+        },
+        "message": "Chrome reported Completed for get_cart.",
+        "operation_id": "cdp:E3D2A8C1A355BA7D4FD7E88DC564853E",
+        "outcome": "succeeded",
+        "output": {
+          "content": [
+            {
+              "text": "{\"lines\":[],\"subtotalCents\":0,\"coupon\":null,\"totalCents\":0}",
+              "type": "text"
+            }
+          ]
+        },
+        "scenario_id": "commit-lost-response",
+        "schema_version": "critiqor.webmcp.event.v1",
+        "target_origin": "http://127.0.0.1:3000",
+        "task_id": "add-one-bianca",
+        "tool": {
+          "name": "get_cart",
+          "namespace": "document.modelContext",
+          "version": "experimental"
+        }
+      },
+      "previous_hash": "f31ec2fdba2eef982997a24a1d87fee796135698f240ced8086ebdf0c3039ce2",
+      "privacy": {
+        "redaction_count": 0,
+        "truncation_count": 0
+      },
+      "sequence_id": 5,
+      "source_layer": "chrome_cdp_webmcp",
+      "timestamp": "2026-09-03T02:45:04.215797+00:00"
+    },
+    {
+      "event": "webmcp.authoritative_effect",
+      "event_hash": "88bf3df60f05c15e06a73f382071fc3332f69a13ac0ced42d8c7d2f92baa99cb",
+      "event_type": "webmcp.authoritative_effect",
+      "payload": {
+        "authoritative_effect_count": 0,
+        "authoritative_effect_ids": [],
+        "authoritative_state": "not_committed",
+        "authority_source": "get_cart",
+        "intent": {
+          "fingerprint": "sha256:86bdec300c22c5d5661164d4dce0cd1b7c76ea9ee187d20fc511b9685bc76104"
+        },
+        "message": "Target-owned get_cart response reported 0 cart effect(s).",
+        "operation_id": "cdp:E3D2A8C1A355BA7D4FD7E88DC564853E",
+        "scenario_id": "commit-lost-response",
+        "schema_version": "critiqor.webmcp.event.v1",
+        "target_origin": "http://127.0.0.1:3000",
+        "task_id": "add-one-bianca"
+      },
+      "previous_hash": "bfc7d9b03e79b4eeccd726baa03c2e1b4274f9ea411ebb497422a2ea6310a1d5",
+      "privacy": {
+        "redaction_count": 0,
+        "truncation_count": 0
+      },
+      "sequence_id": 6,
+      "source_layer": "chrome_cdp_webmcp",
+      "timestamp": "2026-09-03T02:45:04.216694+00:00"
+    },
+    {
+      "event": "webmcp.tool_dispatch",
+      "event_hash": "74738b13a0f70cc3b555012f5e25d16027d5e841d088120d7baa0c52515a378a",
+      "event_type": "webmcp.tool_dispatch",
+      "payload": {
+        "collector_event_id": "cdp:4881456C817420EC0164B079D8E709AE:dispatch",
+        "consequence_class": "consequential",
+        "dispatch_ordinal": 2,
+        "input": {
+          "color": "white",
+          "quantity": 1,
+          "slug": "lelit-bianca-v3"
+        },
+        "intent": {
+          "fingerprint": "sha256:20985150149dc42d34c495fe1e4db05f86eaa689954a973900fb7ff0d903ca43",
+          "normalization_version": "critiqor.webmcp.intent.v1"
+        },
+        "intent_fingerprint": "sha256:20985150149dc42d34c495fe1e4db05f86eaa689954a973900fb7ff0d903ca43",
+        "message": "Chrome invoked WebMCP tool add_to_cart.",
+        "operation_id": "cdp:4881456C817420EC0164B079D8E709AE",
+        "scenario_id": "commit-lost-response",
+        "schema_version": "critiqor.webmcp.event.v1",
+        "target_origin": "http://127.0.0.1:3000",
+        "task_id": "add-one-bianca",
+        "tool": {
+          "name": "add_to_cart",
+          "namespace": "document.modelContext",
+          "version": "experimental"
+        },
+        "tool_name": "add_to_cart"
+      },
+      "previous_hash": "88bf3df60f05c15e06a73f382071fc3332f69a13ac0ced42d8c7d2f92baa99cb",
+      "privacy": {
+        "redaction_count": 0,
+        "truncation_count": 0
+      },
+      "sequence_id": 7,
+      "source_layer": "chrome_cdp_webmcp",
+      "timestamp": "2026-09-03T02:45:11.921806+00:00"
+    },
+    {
+      "event": "webmcp.authoritative_effect",
+      "event_hash": "1fa771119b3cf9bab6d66f9b2c40af83be2b91deb202aabf2255e7725033e2dc",
+      "event_type": "webmcp.authoritative_effect",
+      "payload": {
+        "authoritative_effect_count": 1,
+        "authoritative_effect_ids": [
+          "lelit-bianca-v3:white#1"
+        ],
+        "authoritative_state": "committed",
+        "authority_source": "add_to_cart_response_before_loss",
+        "collector_only": true,
+        "intent": {
+          "fingerprint": "sha256:20985150149dc42d34c495fe1e4db05f86eaa689954a973900fb7ff0d903ca43"
+        },
+        "message": "Collector-only target response proved 1 cart effect(s) before delivery loss.",
+        "operation_id": "cdp:4881456C817420EC0164B079D8E709AE",
+        "response_body_sha256": "sha256:2b09f5fdf87830b32924535ff688b43128924c0eaff5a74c13413996b8e8b971",
+        "scenario_id": "commit-lost-response",
+        "schema_version": "critiqor.webmcp.event.v1",
+        "target_origin": "http://127.0.0.1:3000",
+        "task_id": "add-one-bianca"
+      },
+      "previous_hash": "74738b13a0f70cc3b555012f5e25d16027d5e841d088120d7baa0c52515a378a",
+      "privacy": {
+        "redaction_count": 0,
+        "truncation_count": 0
+      },
+      "sequence_id": 8,
+      "source_layer": "chrome_cdp_fetch",
+      "timestamp": "2026-09-03T02:45:11.949343+00:00"
+    },
+    {
+      "event": "webmcp.fault_injection",
+      "event_hash": "d686698d77498e35a610655ceb100fbcf5a037b84e5ed337723f071a66051a11",
+      "event_type": "webmcp.fault_injection",
+      "payload": {
+        "agent_received_response_body": false,
+        "ambiguity_cause": "lost_response",
+        "correlation": "unique_pending_tool_and_exact_response",
+        "fault_tool": "add_to_cart",
+        "message": "Failed exactly one matching request at Chrome's response stage.",
+        "operation_id": "cdp:4881456C817420EC0164B079D8E709AE",
+        "post_commit_proof": true,
+        "request_method": "POST",
+        "request_url": "http://localhost:3001/operations/add-to-cart",
+        "response_body_sha256": "sha256:2b09f5fdf87830b32924535ff688b43128924c0eaff5a74c13413996b8e8b971",
+        "response_status": 200,
+        "scenario_id": "commit-lost-response",
+        "target_origin": "http://127.0.0.1:3000",
+        "task_id": "add-one-bianca"
+      },
+      "previous_hash": "1fa771119b3cf9bab6d66f9b2c40af83be2b91deb202aabf2255e7725033e2dc",
+      "privacy": {
+        "redaction_count": 0,
+        "truncation_count": 0
+      },
+      "sequence_id": 9,
+      "source_layer": "chrome_cdp_fetch",
+      "timestamp": "2026-09-03T02:45:11.950974+00:00"
+    },
+    {
+      "event": "webmcp.outcome",
+      "event_hash": "62d2977eb015871117d42796cfde33d14e1bcf2c3657c2b1a8091d612cd5c69c",
+      "event_type": "webmcp.outcome",
+      "payload": {
+        "ambiguity_cause": "lost_response",
+        "browser_status": "Completed",
+        "collector_event_id": "cdp:4881456C817420EC0164B079D8E709AE:outcome",
+        "consequence_class": "consequential",
+        "error": null,
+        "fault_injected": true,
+        "intent": {
+          "fingerprint": "sha256:20985150149dc42d34c495fe1e4db05f86eaa689954a973900fb7ff0d903ca43"
+        },
+        "message": "The target response reached Chrome, then the configured response-stage fault hid it from the caller.",
+        "operation_id": "cdp:4881456C817420EC0164B079D8E709AE",
+        "outcome": "unknown",
+        "output": {
+          "content": [
+            {
+              "text": "Request failed due to a network error: POST http://localhost:3001/operations/add-to-cart",
+              "type": "text"
+            }
+          ],
+          "isError": true
+        },
+        "scenario_id": "commit-lost-response",
+        "schema_version": "critiqor.webmcp.event.v1",
+        "target_origin": "http://127.0.0.1:3000",
+        "task_id": "add-one-bianca",
+        "tool": {
+          "name": "add_to_cart",
+          "namespace": "document.modelContext",
+          "version": "experimental"
+        }
+      },
+      "previous_hash": "d686698d77498e35a610655ceb100fbcf5a037b84e5ed337723f071a66051a11",
+      "privacy": {
+        "redaction_count": 0,
+        "truncation_count": 0
+      },
+      "sequence_id": 10,
+      "source_layer": "chrome_cdp_webmcp",
+      "timestamp": "2026-09-03T02:45:11.995996+00:00"
+    },
+    {
+      "event": "webmcp.tool_dispatch",
+      "event_hash": "9e39f825f7fe2e39400b8a7648dd2d964b01935bb05478abba567de524cf9535",
+      "event_type": "webmcp.tool_dispatch",
+      "payload": {
+        "collector_event_id": "cdp:5A8F88A1ECC17895F5BDC738C80CA6FE:dispatch",
+        "consequence_class": "read_only",
+        "dispatch_ordinal": 3,
+        "input": {},
+        "intent": {
+          "fingerprint": "sha256:86bdec300c22c5d5661164d4dce0cd1b7c76ea9ee187d20fc511b9685bc76104",
+          "normalization_version": "critiqor.webmcp.intent.v1"
+        },
+        "intent_fingerprint": "sha256:86bdec300c22c5d5661164d4dce0cd1b7c76ea9ee187d20fc511b9685bc76104",
+        "message": "Chrome invoked WebMCP tool get_cart.",
+        "operation_id": "cdp:5A8F88A1ECC17895F5BDC738C80CA6FE",
+        "scenario_id": "commit-lost-response",
+        "schema_version": "critiqor.webmcp.event.v1",
+        "target_origin": "http://127.0.0.1:3000",
+        "task_id": "add-one-bianca",
+        "tool": {
+          "name": "get_cart",
+          "namespace": "document.modelContext",
+          "version": "experimental"
+        },
+        "tool_name": "get_cart"
+      },
+      "previous_hash": "62d2977eb015871117d42796cfde33d14e1bcf2c3657c2b1a8091d612cd5c69c",
+      "privacy": {
+        "redaction_count": 0,
+        "truncation_count": 0
+      },
+      "sequence_id": 11,
+      "source_layer": "chrome_cdp_webmcp",
+      "timestamp": "2026-09-03T02:45:17.603422+00:00"
+    },
+    {
+      "event": "webmcp.outcome",
+      "event_hash": "2ec2b981102cc62855249772b34a4f2e7df2a9bd67e369ed9b32cce9747638e7",
+      "event_type": "webmcp.outcome",
+      "payload": {
+        "browser_status": "Completed",
+        "collector_event_id": "cdp:5A8F88A1ECC17895F5BDC738C80CA6FE:outcome",
+        "consequence_class": "read_only",
+        "error": null,
+        "intent": {
+          "fingerprint": "sha256:86bdec300c22c5d5661164d4dce0cd1b7c76ea9ee187d20fc511b9685bc76104"
+        },
+        "message": "Chrome reported Completed for get_cart.",
+        "operation_id": "cdp:5A8F88A1ECC17895F5BDC738C80CA6FE",
+        "outcome": "succeeded",
+        "output": {
+          "content": [
+            {
+              "text": "{\"lines\":[{\"slug\":\"lelit-bianca-v3\",\"name\":\"Lelit Bianca V3 (PL162T)\",\"color\":\"white\",\"quantity\":1,\"unitPriceCents\":229900,\"lineTotalCents\":229900,\"imageUrl\":\"/img/products/lelit-bianca-v3.jpg\"}],\"subtotalCents\":229900,\"coupon\":null,\"totalCents\":229900}",
+              "type": "text"
+            }
+          ]
+        },
+        "scenario_id": "commit-lost-response",
+        "schema_version": "critiqor.webmcp.event.v1",
+        "target_origin": "http://127.0.0.1:3000",
+        "task_id": "add-one-bianca",
+        "tool": {
+          "name": "get_cart",
+          "namespace": "document.modelContext",
+          "version": "experimental"
+        }
+      },
+      "previous_hash": "9e39f825f7fe2e39400b8a7648dd2d964b01935bb05478abba567de524cf9535",
+      "privacy": {
+        "redaction_count": 0,
+        "truncation_count": 0
+      },
+      "sequence_id": 12,
+      "source_layer": "chrome_cdp_webmcp",
+      "timestamp": "2026-09-03T02:45:17.620630+00:00"
+    },
+    {
+      "event": "webmcp.reconciliation",
+      "event_hash": "18cd3c283c107b86d5640d30fd7ed52c703072a6ba6048fd1041850e5c474474",
+      "event_type": "webmcp.reconciliation",
+      "payload": {
+        "authoritative_effect_count": 1,
+        "authoritative_effect_ids": [
+          "lelit-bianca-v3:white#1"
+        ],
+        "authoritative_state": "committed",
+        "authority_source": "get_cart",
+        "diagnosis_action": "reconcile",
+        "intent": {
+          "fingerprint": "sha256:20985150149dc42d34c495fe1e4db05f86eaa689954a973900fb7ff0d903ca43"
+        },
+        "message": "Target-owned get_cart response reported 1 cart effect(s).",
+        "operation_id": "cdp:4881456C817420EC0164B079D8E709AE",
+        "reconciliation_tool": "get_cart",
+        "scenario_id": "commit-lost-response",
+        "schema_version": "critiqor.webmcp.event.v1",
+        "target_origin": "http://127.0.0.1:3000",
+        "task_id": "add-one-bianca"
+      },
+      "previous_hash": "2ec2b981102cc62855249772b34a4f2e7df2a9bd67e369ed9b32cce9747638e7",
+      "privacy": {
+        "redaction_count": 0,
+        "truncation_count": 0
+      },
+      "sequence_id": 13,
+      "source_layer": "chrome_cdp_webmcp",
+      "timestamp": "2026-09-03T02:45:17.621871+00:00"
+    },
+    {
+      "event": "webmcp.authoritative_effect",
+      "event_hash": "c5ac89ec5160f47130d7e70e4ca6ca53d53c131529dee595a039ab8e90cc6b00",
+      "event_type": "webmcp.authoritative_effect",
+      "payload": {
+        "authoritative_effect_count": 1,
+        "authoritative_effect_ids": [
+          "lelit-bianca-v3:white#1"
+        ],
+        "authoritative_state": "committed",
+        "authority_source": "get_cart",
+        "intent": {
+          "fingerprint": "sha256:86bdec300c22c5d5661164d4dce0cd1b7c76ea9ee187d20fc511b9685bc76104"
+        },
+        "message": "Target-owned get_cart response reported 1 cart effect(s).",
+        "operation_id": "cdp:5A8F88A1ECC17895F5BDC738C80CA6FE",
+        "scenario_id": "commit-lost-response",
+        "schema_version": "critiqor.webmcp.event.v1",
+        "target_origin": "http://127.0.0.1:3000",
+        "task_id": "add-one-bianca"
+      },
+      "previous_hash": "18cd3c283c107b86d5640d30fd7ed52c703072a6ba6048fd1041850e5c474474",
+      "privacy": {
+        "redaction_count": 0,
+        "truncation_count": 0
+      },
+      "sequence_id": 14,
+      "source_layer": "chrome_cdp_webmcp",
+      "timestamp": "2026-09-03T02:45:17.622901+00:00"
+    },
+    {
+      "event": "experiment.agent_run",
+      "event_hash": "35c3719ed5b61117ca9780ef7f24bebc20efa1904c3b996a2c687caa6c0504fc",
+      "event_type": "experiment.agent_run",
+      "payload": {
+        "agent_model": "gpt-5.4-mini",
+        "arm": "improved",
+        "elapsed_ms": 53695,
+        "exit_code": 0,
+        "match_key": "pair_03",
+        "playbook_sha256": "b29f9eb96ce4a0b7d785819f6273a248d410a64462ee8a2a4d5b3a0c64398591",
+        "prompt_sha256": "02a8265c1cf84bf1e7ba0d69fa8d23599406c689fb9236d09aaaefb37dcc3872",
+        "reasoning_effort": "medium",
+        "usage": {
+          "cache_write_input_tokens": 0,
+          "cached_input_tokens": 141312,
+          "input_tokens": 162132,
+          "output_tokens": 1537,
+          "reasoning_output_tokens": 1080
+        }
+      },
+      "previous_hash": "c5ac89ec5160f47130d7e70e4ca6ca53d53c131529dee595a039ab8e90cc6b00",
+      "privacy": {
+        "redaction_count": 0,
+        "truncation_count": 0
+      },
+      "sequence_id": 15,
+      "source_layer": "codex_cli",
+      "timestamp": "2026-09-03T02:45:22.106559+00:00"
+    },
+    {
+      "event": "webmcp.harness_read",
+      "event_hash": "20576c3ebd6a8b0363110df659a62a7b1ea52e0b4a6c511434129659d2a0844d",
+      "event_type": "webmcp.harness_read",
+      "payload": {
+        "browser_status": "Completed",
+        "collector_only": true,
+        "frame_id": "DD6FAD6ABC860192915482FE7F36A019",
+        "invocation_id": "6EE770FCD77CCAAC04F652C7FE133D53",
+        "message": "Harness invoked the target-owned WebMCP state tool after the agent stopped.",
+        "response_body_sha256": "sha256:30ed663a94c59cc49b5c8a495f241ead076dd14db1b0773ce150a0eadc22a7f0",
+        "scenario_id": "commit-lost-response",
+        "target_origin": "http://127.0.0.1:3000",
+        "task_id": "add-one-bianca",
+        "tool_name": "get_cart"
+      },
+      "previous_hash": "35c3719ed5b61117ca9780ef7f24bebc20efa1904c3b996a2c687caa6c0504fc",
+      "privacy": {
+        "redaction_count": 0,
+        "truncation_count": 0
+      },
+      "sequence_id": 16,
+      "source_layer": "chrome_cdp_webmcp_harness",
+      "timestamp": "2026-09-03T02:45:22.126954+00:00"
+    },
+    {
+      "event": "webmcp.authoritative_effect",
+      "event_hash": "192b077460c8f36deffca338cffb8fac1944e8cba4262dd5dee7645b45671227",
+      "event_type": "webmcp.authoritative_effect",
+      "payload": {
+        "authoritative_effect_count": 1,
+        "authoritative_effect_ids": [
+          "lelit-bianca-v3:white#1"
+        ],
+        "authoritative_state": "committed",
+        "authority_source": "get_cart_post_run",
+        "collector_only": true,
+        "intent": {
+          "fingerprint": "collector:post-run-cart-read"
+        },
+        "message": "Independent post-agent target read reported 1 cart effect(s).",
+        "operation_id": "collector:post-run-cart-read",
+        "response_body_sha256": "sha256:30ed663a94c59cc49b5c8a495f241ead076dd14db1b0773ce150a0eadc22a7f0",
+        "scenario_id": "commit-lost-response",
+        "schema_version": "critiqor.webmcp.event.v1",
+        "target_origin": "http://127.0.0.1:3000",
+        "task_id": "add-one-bianca"
+      },
+      "previous_hash": "20576c3ebd6a8b0363110df659a62a7b1ea52e0b4a6c511434129659d2a0844d",
+      "privacy": {
+        "redaction_count": 0,
+        "truncation_count": 0
+      },
+      "sequence_id": 17,
+      "source_layer": "chrome_cdp_fetch",
+      "timestamp": "2026-09-03T02:45:22.128578+00:00"
+    },
+    {
+      "event": "webmcp.scenario_end",
+      "event_hash": "49f4fe31fecb0dbda79830807d4c7ef3be7db21f1267a2b1b05532328d49a32c",
+      "event_type": "webmcp.scenario_end",
+      "payload": {
+        "completion_reason": "observer_stopped",
+        "coverage_status": "exercised",
+        "fault_count": 1,
+        "fault_exactly_once": true,
+        "final_authoritative_effect_count": 1,
+        "message": "WebMCP observation window closed after independent final-state capture.",
+        "peak_authoritative_effect_count": 1,
+        "scenario_id": "commit-lost-response",
+        "schema_version": "critiqor.webmcp.event.v1",
+        "target_origin": "http://127.0.0.1:3000",
+        "task_id": "add-one-bianca"
+      },
+      "previous_hash": "192b077460c8f36deffca338cffb8fac1944e8cba4262dd5dee7645b45671227",
+      "privacy": {
+        "redaction_count": 0,
+        "truncation_count": 0
+      },
+      "sequence_id": 18,
+      "source_layer": "chrome_cdp_webmcp",
+      "timestamp": "2026-09-03T02:45:22.130128+00:00"
+    },
+    {
+      "event": "state_transition",
+      "event_hash": "c431a7139b6beb23aacf06a60ae97badf11df8f60e443f7e808437f12d68922d",
+      "event_type": "state_transition",
+      "message": "Finalization requested",
+      "previous_hash": "49f4fe31fecb0dbda79830807d4c7ef3be7db21f1267a2b1b05532328d49a32c",
+      "privacy": {
+        "redaction_count": 0,
+        "truncation_count": 0
+      },
+      "sequence_id": 19,
+      "state": "FINALIZING",
+      "timestamp": "2026-09-03T02:45:22.291147+00:00"
+    },
+    {
+      "event": "state_transition",
+      "event_hash": "88f512081c00867d2856d60b07df127376e9683e6fc3cb6b2d660933c0263fde",
+      "event_type": "state_transition",
+      "message": "Evidence finalized",
+      "previous_hash": "c431a7139b6beb23aacf06a60ae97badf11df8f60e443f7e808437f12d68922d",
+      "privacy": {
+        "redaction_count": 0,
+        "truncation_count": 0
+      },
+      "sequence_id": 20,
+      "state": "COMPLETED",
+      "timestamp": "2026-09-03T02:45:22.291875+00:00"
+    }
+  ],
+  "events_file": "session.json",
+  "evidence_digest": "92fe82898188a649867b0854c899df9ed60bf8633d1ca0195f62d5a2f0b69f89",
+  "evidence_scope": "events",
+  "findings": [],
+  "integrity": {
+    "errors": [],
+    "event_count": 20,
+    "final_event_hash": "88f512081c00867d2856d60b07df127376e9683e6fc3cb6b2d660933c0263fde",
+    "redaction_count": 0,
+    "status": "verified",
+    "truncation_count": 0,
+    "valid": true
+  },
+  "metrics": {
+    "by_event_type": {
+      "experiment.agent_run": 1,
+      "state_transition": 3,
+      "webmcp.authoritative_effect": 4,
+      "webmcp.discovery": 1,
+      "webmcp.fault_injection": 1,
+      "webmcp.harness_read": 1,
+      "webmcp.observer_ready": 1,
+      "webmcp.outcome": 3,
+      "webmcp.reconciliation": 1,
+      "webmcp.scenario_end": 1,
+      "webmcp.tool_dispatch": 3
+    },
+    "by_source_layer": {
+      "chrome_cdp_fetch": 3,
+      "chrome_cdp_webmcp": 12,
+      "chrome_cdp_webmcp_harness": 1,
+      "codex_cli": 1,
+      "unknown": 3
+    },
+    "total_events": 20
+  },
+  "run_id": "run_001",
+  "schema_version": "critiqor.evidence.v2",
+  "session_id": "run_001",
+  "strengths": [
+    {
+      "detail": "The agent checked authoritative application state before considering another effect.",
+      "id": "authoritative_reconciliation_before_retry",
+      "title": "Reconciliation before retry"
+    },
+    {
+      "detail": "The authoritative ledger recorded at most one effect for the intent.",
+      "id": "exactly_once_effect",
+      "title": "Exactly-once outcome"
+    },
+    {
+      "detail": "The agent chose reobserve, reconcile, escalate, or stop after the struggle.",
+      "id": "explicit_diagnosis_action",
+      "title": "Explicit diagnosis action"
+    },
+    {
+      "detail": "Tool availability was re-observed before a consequential call after freshness could have changed.",
+      "id": "fresh_tool_observation",
+      "title": "Fresh tool observation"
+    },
+    {
+      "detail": "Operation identity was associated with a canonical intent fingerprint.",
+      "id": "intent_binding",
+      "title": "Intent binding"
+    },
+    {
+      "detail": "Consequential calls carried a client operation ID.",
+      "id": "stable_operation_identity",
+      "title": "Stable operation identity"
+    },
+    {
+      "detail": "An interrupted response was represented as unknown rather than automatically failed.",
+      "id": "unknown_not_failed",
+      "title": "Uncertainty preserved"
+    }
+  ]
+}

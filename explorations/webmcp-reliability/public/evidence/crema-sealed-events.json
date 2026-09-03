@@ -1,0 +1,13 @@
+{
+  "source_artifact":"work/experiment_runs/matched_01_baseline/run_001/session.json",
+  "evidence_digest":"e1a79aff49d624458571b2f0880befd65c93aebc02bd70f81f9d3d010f288e22",
+  "note":"Exact material event excerpt from the sealed 15-event session. The full local session is the integrity authority.",
+  "events":[
+    {"sequence_id":7,"event_type":"webmcp.tool_dispatch","source_layer":"chrome_cdp_webmcp","event_hash":"01b40240324749c71593b4b9a6de6315e393454ce793251cd7f81c8ebc2eec52","message":"Chrome invoked WebMCP tool add_to_cart.","input":{"slug":"lelit-bianca-v3","color":"white","quantity":1}},
+    {"sequence_id":8,"event_type":"webmcp.fault_injection","source_layer":"chrome_cdp_fetch","event_hash":"68cd9846df04723f4d531aa37784e6fca5e51bd23fb2d87b6ce9699f2a9c9dd1","message":"Failed exactly one matching request at Chrome's response stage.","response_status":200},
+    {"sequence_id":9,"event_type":"webmcp.outcome","source_layer":"chrome_cdp_webmcp","event_hash":"909ecb1be6d0ea681978dac5230fd88d055ac4e0a18978eaea266397e3380c88","outcome":"unknown","ambiguity_cause":"lost_response"},
+    {"sequence_id":10,"event_type":"webmcp.tool_dispatch","source_layer":"chrome_cdp_webmcp","event_hash":"8d172393cffdc5efb23dce3689890223d35e6747463a7a71b1f5b256c98f59d4","message":"Chrome invoked WebMCP tool get_cart."},
+    {"sequence_id":12,"event_type":"webmcp.reconciliation","source_layer":"chrome_cdp_webmcp","event_hash":"a07f1b3e26759fb380ccbe5126ac24fa20278311a76e106f71bbf82c75139207","authoritative_state":"committed","authoritative_effect_count":1},
+    {"sequence_id":13,"event_type":"webmcp.authoritative_effect","source_layer":"chrome_cdp_webmcp","event_hash":"89668a4fe9be7da9efae177ac08400989ed515aca5a25cbc7ca8f0adbdb3d9f6","authoritative_state":"committed","authoritative_effect_count":1}
+  ]
+}

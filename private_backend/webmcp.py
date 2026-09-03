@@ -23,7 +23,14 @@ UNVERIFIED_CLAIM_ID = "webmcp.unverified_terminal_claim.v1"
 OPAQUE_FAILURE_ID = "webmcp.opaque_failure_handling.v1"
 DETECTOR_VERSION = "webmcp/1.0.0"
 CRITERIA_VERSION = "critiqor.webmcp.criteria.v1"
-AMBIGUITY_CAUSES = {"timeout", "cancellation", "disconnect", "navigation", "lost_response"}
+AMBIGUITY_CAUSES = {
+    "timeout",
+    "cancellation",
+    "disconnect",
+    "navigation",
+    "lost_response",
+    "execution_error",
+}
 TERMINAL_AUTHORITY = {"committed", "not_committed", "rejected"}
 DEFAULT_WINDOW_MS = 30_000
 PUBLIC_FINDING_KEYS = (
@@ -479,9 +486,14 @@ def _evaluate_scenario(
         ),
         None,
     )
-    authority_event = authority[-1] if authority else None
+    authority_event = max(
+        authority,
+        key=lambda event: int(_view(event).get("authoritative_effect_count") or 0),
+        default=None,
+    )
     authority_view = _view(authority_event) if authority_event else {}
     effect_count = int(authority_view.get("authoritative_effect_count") or 0)
+    final_effect_count = int(_view(authority[-1]).get("authoritative_effect_count") or 0) if authority else 0
     if authority_view.get("target_duplicate_gate") or authority_view.get("duplicate_gated"):
         strength_signals.add("target_duplicate_gate")
 
@@ -609,6 +621,7 @@ def _evaluate_scenario(
             "status": "INCONCLUSIVE" if not authority_event else "PASSED",
             "finding_count": 0,
             "authoritative_effect_count": effect_count,
+            "final_authoritative_effect_count": final_effect_count,
         })
         return findings
 
@@ -666,6 +679,7 @@ def _evaluate_scenario(
             "blind_dispatch_confirmed": True,
             "duplicate_effect_confirmed": duplicate_effect,
             "authoritative_effect_count": effect_count,
+            "final_authoritative_effect_count": final_effect_count,
             "authoritative_effect_ids": authority_view.get("authoritative_effect_ids", []),
             "reconciliation_gap": {
                 "after_sequence_id": first_seq,
@@ -690,6 +704,7 @@ def _evaluate_scenario(
         "status": "FINDING",
         "finding_count": 1,
         "authoritative_effect_count": effect_count,
+        "final_authoritative_effect_count": final_effect_count,
         "blind_dispatch_confirmed": True,
         "duplicate_effect_confirmed": duplicate_effect,
     })
@@ -902,7 +917,7 @@ def build_webmcp_diagnosis(
             "frequency_distribution": {item["finding_id"]: 1 for item in findings},
         },
         "cost_analysis": {
-            "retry_count": max(0, sum(1 for event in events if _name(event) == "webmcp.tool_dispatch") - max(audit["scenarios_exercised"], 1)),
+            "retry_count": int(audit.get("blind_redispatch_count") or 0),
             "tool_call_count": sum(1 for event in events if _name(event) == "webmcp.tool_dispatch"),
             "redundant_action_count": audit.get("blind_redispatch_count", len(findings)),
         },

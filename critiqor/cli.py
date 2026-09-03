@@ -53,6 +53,7 @@ from .frameworks import (
     save_visibility,
     update_framework,
 )
+from .webmcp_browser import WebMCPMonitorOptions, monitor_webmcp_browser
 
 _COMMAND_HELP = f"""{CRITIQOR_ASCII_LOGO}
 
@@ -74,6 +75,9 @@ critiqor monitor cc
 
 critiqor monitor codex
 - Launch Codex CLI and begin runtime observation
+
+critiqor monitor webmcp
+- Observe a WebMCP-enabled Chrome tab and optionally inject one response-stage fault
 
 critiqor finalize
 - Stop observation session, generate diagnosis, and open the local dashboard
@@ -262,6 +266,108 @@ def monitor_codex_command(cwd: str | None, timeout: float | None, runs_dir: str)
     """Launch Codex CLI and begin runtime observation."""
 
     return _monitor_official("codex", cwd, timeout, runs_dir)
+
+
+@monitor.command("webmcp")
+@click.option(
+    "--cdp-url",
+    envvar="CRITIQOR_CDP_URL",
+    show_envvar=True,
+    required=True,
+    metavar="URL",
+    help="Chrome remote-debugging HTTP endpoint, for example http://127.0.0.1:9222.",
+)
+@click.option("--target-url", required=True, help="Exact URL prefix of the audited Chrome tab.")
+@click.option("--runs-dir", default="runs", show_default=True)
+@click.option("--task-id", required=True)
+@click.option("--scenario-id", required=True)
+@click.option("--consequential-tool", "consequential_tools", multiple=True)
+@click.option("--reconciliation-tool", "reconciliation_tools", multiple=True)
+@click.option("--authoritative-tool", "authoritative_tools", multiple=True)
+@click.option("--fault-response-url", default=None, help="Exact mutation response URL to fail once.")
+@click.option("--fault-method", default="POST", show_default=True)
+@click.option("--fault-tool", default=None, help="Consequential WebMCP tool bound to the fault.")
+@click.option(
+    "--authoritative-state-url",
+    default=None,
+    help="Authenticated target-owned state endpoint read once when observation stops.",
+)
+@click.option(
+    "--allowed-api-origin",
+    default=None,
+    help="Explicit API origin allowed for fault and authoritative-state URLs.",
+)
+@click.option(
+    "--authoritative-state-tool",
+    default=None,
+    help="Target-owned WebMCP read tool invoked once by the harness after the agent stops.",
+)
+@click.option("--experiment-arm", type=click.Choice(["baseline", "improved"]), default=None)
+@click.option("--match-key", default=None, help="Identifier shared by mechanically matched experiment arms.")
+@click.option("--agent-model", default=None, help="Executing agent model recorded as experiment provenance.")
+@click.option("--reasoning-effort", default=None, help="Executing agent reasoning setting recorded as provenance.")
+@click.option("--prompt-sha256", default=None, help="SHA-256 digest of the exact agent prompt.")
+@click.option("--playbook-sha256", default=None, help="SHA-256 digest of the treatment playbook, if present.")
+def monitor_webmcp_command(
+    cdp_url: str,
+    target_url: str,
+    runs_dir: str,
+    task_id: str,
+    scenario_id: str,
+    consequential_tools: tuple[str, ...],
+    reconciliation_tools: tuple[str, ...],
+    authoritative_tools: tuple[str, ...],
+    fault_response_url: str | None,
+    fault_method: str,
+    fault_tool: str | None,
+    authoritative_state_url: str | None,
+    authoritative_state_tool: str | None,
+    allowed_api_origin: str | None,
+    experiment_arm: str | None,
+    match_key: str | None,
+    agent_model: str | None,
+    reasoning_effort: str | None,
+    prompt_sha256: str | None,
+    playbook_sha256: str | None,
+) -> int:
+    """Observe a WebMCP-enabled Chrome tab through native CDP events."""
+
+    def ready(run_id: str) -> None:
+        click.echo(f"Critiqor is observing WebMCP in Chrome as {run_id}.")
+        click.echo("Press Ctrl-C when the browser task is complete, then run `critiqor finalize`.")
+
+    try:
+        return monitor_webmcp_browser(
+            WebMCPMonitorOptions(
+                cdp_url=cdp_url,
+                target_url=target_url,
+                runs_dir=runs_dir,
+                task_id=task_id,
+                scenario_id=scenario_id,
+                consequential_tools=consequential_tools,
+                reconciliation_tools=reconciliation_tools,
+                authoritative_tools=authoritative_tools,
+                fault_response_url=fault_response_url,
+                fault_method=fault_method,
+                fault_tool=fault_tool,
+                authoritative_state_url=authoritative_state_url,
+                authoritative_state_tool=authoritative_state_tool,
+                allowed_api_origin=allowed_api_origin,
+                metadata={
+                    "experiment_provenance": {
+                        "arm": experiment_arm,
+                        "match_key": match_key,
+                        "agent_model": agent_model,
+                        "reasoning_effort": reasoning_effort,
+                        "prompt_sha256": prompt_sha256,
+                        "playbook_sha256": playbook_sha256,
+                    }
+                },
+            ),
+            on_ready=ready,
+        )
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise click.ClickException(f"WebMCP observer could not start: {exc}") from exc
 
 
 @cli.command("agents", cls=BriefHelpCommand)
