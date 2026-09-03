@@ -49,11 +49,28 @@ export const Route = createFileRoute("/api/runs")({
 
 function redactAnonymous(run: unknown) {
   if (dashboardAccess().visibility !== "anonymous") return run;
-  const copy = structuredClone(run) as Record<string, unknown>;
+  const copy = redactPrivatePaths(structuredClone(run)) as Record<string, unknown>;
   copy.agent_id = "anonymous-agent";
   copy.tenant_id = "anonymous";
   copy.visibility = "anonymous";
   const raw = copy.raw_evidence as Record<string, unknown> | undefined;
   if (raw) for (const key of Object.keys(raw)) raw[key] = "Hidden for anonymous access";
   return copy;
+}
+
+function redactPrivatePaths(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactPrivatePaths);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, redactPrivatePaths(item)]),
+    );
+  }
+  if (typeof value !== "string") return value;
+  return value
+    .replace(/(?:file:\/\/)?\/(?:Users|home)\/.*$/gi, "Hidden for anonymous access")
+    .replace(/(?:file:\/\/)?\/(?:private\/)?var\/folders\/.*$/gi, "Hidden for anonymous access")
+    .replace(/[A-Z]:[\\/]Users[\\/].*$/gi, "Hidden for anonymous access")
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi, "[REDACTED]")
+    .replace(/\bsk-[A-Za-z0-9_-]{12,}\b/g, "[REDACTED]")
+    .replace(/\b(?:ghp|github_pat)_[A-Za-z0-9_]{12,}\b/g, "[REDACTED]");
 }

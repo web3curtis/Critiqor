@@ -3,7 +3,7 @@ import { Copy, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
-const currentVersion = "0.2.17";
+const currentVersion = "0.2.19";
 
 const newerThan = (next: string, current: string) => {
   const left = next.split(".").map(Number);

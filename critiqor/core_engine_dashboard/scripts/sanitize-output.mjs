@@ -22,7 +22,9 @@ function sanitize(text) {
     .split(absolutePrefix).join("")
     .split(absolutePrefixPosix).join("")
     .replace(/\/Users\/[^"'`\s]+\/core_engine_dashboard\//g, "")
-    .replace(/\/home\/[^"'`\s]+\/core_engine_dashboard\//g, "");
+    .replace(/\/home\/[^"'`\s]+\/core_engine_dashboard\//g, "")
+    .replace(/[A-Z]:\\Users\\[^"'`\r\n]+?\\core_engine_dashboard\\/gi, "")
+    .replace(/\/(?:private\/)?var\/folders\/[^"'`\r\n]+/g, "[temporary path redacted]");
 }
 
 let changed = 0;
@@ -38,4 +40,13 @@ for (const file of walk(outputRoot)) {
 
 if (changed) {
   console.log(`Sanitized machine paths from ${changed} dashboard output file(s).`);
+}
+
+const remaining = walk(outputRoot).filter((file) => {
+  if (!/\.(mjs|js|cjs|json|map)$/.test(file)) return false;
+  const text = fs.readFileSync(file, "utf8");
+  return /\/Users\/[^/\s]+\/|\/home\/[^/\s]+\/|[A-Z]:\\Users\\/i.test(text);
+});
+if (remaining.length) {
+  throw new Error(`Dashboard output still contains machine paths in ${remaining.length} file(s).`);
 }

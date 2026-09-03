@@ -53,7 +53,7 @@ function renderErrorPage() {
 let serverEntryPromise;
 async function getServerEntry() {
   if (!serverEntryPromise) {
-    serverEntryPromise = import("./tanstack-vendor-biT8I9nD.mjs").then((n) => n.s).then(
+    serverEntryPromise = import("./tanstack-vendor-C-iITAKT.mjs").then((n) => n.s).then(
       (m) => m.default ?? m
     );
   }

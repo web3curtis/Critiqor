@@ -1,5 +1,5 @@
 import { r as renderErrorPage } from "./index.mjs";
-import { c as createStart, a as createMiddleware } from "./tanstack-vendor-biT8I9nD.mjs";
+import { c as createStart, a as createMiddleware } from "./tanstack-vendor-C-iITAKT.mjs";
 import "../_libs/react.mjs";
 import "../_libs/seroval.mjs";
 import "node:async_hooks";

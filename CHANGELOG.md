@@ -16,6 +16,10 @@ Chrome/WebMCP live observation release.
   unexpected debugger disconnects.
 - Added startup validation so unavailable WebMCP/CDP domains fail before a
   Critiqor session is created.
+- Hardened anonymous dashboard responses against macOS, Linux, and Windows home
+  paths plus common credential signatures without changing private dashboards.
+- Added build-output sanitization and a wheel/sdist privacy audit gate to stop
+  machine paths or credential files before publication.
 - Added `websocket-client>=1.8` as a package dependency and documented the
   dedicated Chrome profile workflow.
 

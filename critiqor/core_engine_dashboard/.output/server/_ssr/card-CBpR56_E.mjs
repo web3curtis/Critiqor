@@ -1,5 +1,5 @@
 import { j as jsxRuntimeExports, r as reactExports } from "../_libs/react.mjs";
-import { u as useCritiqor, c as cn } from "./router-ByJJYtQN.mjs";
+import { u as useCritiqor, c as cn } from "./router-Cv4vvrPJ.mjs";
 import { c as cva } from "../_libs/class-variance-authority.mjs";
 const badgeVariants = cva(
   "inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2",

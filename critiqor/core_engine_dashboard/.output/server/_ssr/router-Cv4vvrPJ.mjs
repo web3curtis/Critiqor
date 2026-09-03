@@ -1910,7 +1910,7 @@ function ThemeManager() {
   }, []);
   return null;
 }
-const currentVersion = "0.2.17";
+const currentVersion = "0.2.19";
 const newerThan = (next, current) => {
   const left = next.split(".").map(Number);
   const right = current.split(".").map(Number);
@@ -2098,7 +2098,7 @@ function RootComponent() {
     ] })
   ] });
 }
-const $$splitComponentImporter$6 = () => import("./settings-EhlfyIEY.mjs");
+const $$splitComponentImporter$6 = () => import("./settings-DBIel2GU.mjs");
 const Route$a = createFileRoute("/settings")({
   head: () => ({
     meta: [{
@@ -2107,7 +2107,7 @@ const Route$a = createFileRoute("/settings")({
   }),
   component: lazyRouteComponent($$splitComponentImporter$6, "component")
 });
-const $$splitComponentImporter$5 = () => import("./runs-RLyrUTNp.mjs");
+const $$splitComponentImporter$5 = () => import("./runs-D-PIEdl2.mjs");
 const Route$9 = createFileRoute("/runs")({
   head: () => ({
     meta: [{
@@ -2116,7 +2116,7 @@ const Route$9 = createFileRoute("/runs")({
   }),
   component: lazyRouteComponent($$splitComponentImporter$5, "component")
 });
-const $$splitComponentImporter$4 = () => import("./playbook-CpeMKD_k.mjs");
+const $$splitComponentImporter$4 = () => import("./playbook-rCmZY5ut.mjs");
 const Route$8 = createFileRoute("/playbook")({
   head: () => ({
     meta: [{
@@ -2125,7 +2125,7 @@ const Route$8 = createFileRoute("/playbook")({
   }),
   component: lazyRouteComponent($$splitComponentImporter$4, "component")
 });
-const $$splitComponentImporter$3 = () => import("./evidence-CTFQlBl5.mjs");
+const $$splitComponentImporter$3 = () => import("./evidence-BNrfe_56.mjs");
 const Route$7 = createFileRoute("/evidence")({
   head: () => ({
     meta: [{
@@ -2134,7 +2134,7 @@ const Route$7 = createFileRoute("/evidence")({
   }),
   component: lazyRouteComponent($$splitComponentImporter$3, "component")
 });
-const $$splitComponentImporter$2 = () => import("./diagnoses-DWAltkAB.mjs");
+const $$splitComponentImporter$2 = () => import("./diagnoses-BPvvx8bl.mjs");
 const Route$6 = createFileRoute("/diagnoses")({
   head: () => ({
     meta: [{
@@ -2143,7 +2143,7 @@ const Route$6 = createFileRoute("/diagnoses")({
   }),
   component: lazyRouteComponent($$splitComponentImporter$2, "component")
 });
-const $$splitComponentImporter$1 = () => import("./appearance-CcUqSMox.mjs");
+const $$splitComponentImporter$1 = () => import("./appearance-6Pv8vKmY.mjs");
 const Route$5 = createFileRoute("/appearance")({
   head: () => ({
     meta: [{
@@ -2152,7 +2152,7 @@ const Route$5 = createFileRoute("/appearance")({
   }),
   component: lazyRouteComponent($$splitComponentImporter$1, "component")
 });
-const $$splitComponentImporter = () => import("./index-B9AGRGAG.mjs");
+const $$splitComponentImporter = () => import("./index-6MlyV0sl.mjs");
 const Route$4 = createFileRoute("/")({
   head: () => ({
     meta: [{
@@ -2604,13 +2604,23 @@ const Route$3 = createFileRoute("/api/runs")({
 });
 function redactAnonymous$1(run) {
   if (dashboardAccess().visibility !== "anonymous") return run;
-  const copy = structuredClone(run);
+  const copy = redactPrivatePaths$1(structuredClone(run));
   copy.agent_id = "anonymous-agent";
   copy.tenant_id = "anonymous";
   copy.visibility = "anonymous";
   const raw = copy.raw_evidence;
   if (raw) for (const key of Object.keys(raw)) raw[key] = "Hidden for anonymous access";
   return copy;
+}
+function redactPrivatePaths$1(value) {
+  if (Array.isArray(value)) return value.map(redactPrivatePaths$1);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, redactPrivatePaths$1(item)])
+    );
+  }
+  if (typeof value !== "string") return value;
+  return value.replace(/(?:file:\/\/)?\/(?:Users|home)\/.*$/gi, "Hidden for anonymous access").replace(/(?:file:\/\/)?\/(?:private\/)?var\/folders\/.*$/gi, "Hidden for anonymous access").replace(/[A-Z]:[\\/]Users[\\/].*$/gi, "Hidden for anonymous access").replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{8,}/gi, "[REDACTED]").replace(/\bsk-[A-Za-z0-9_-]{12,}\b/g, "[REDACTED]").replace(/\b(?:ghp|github_pat)_[A-Za-z0-9_]{12,}\b/g, "[REDACTED]");
 }
 const Route$2 = createFileRoute("/api/access")({
   server: {
@@ -2727,13 +2737,22 @@ const Route = createFileRoute("/api/runs/$runId")({
 });
 function redactAnonymous(run) {
   if (dashboardAccess().visibility !== "anonymous") return run;
-  const copy = structuredClone(run);
+  const copy = redactPrivatePaths(structuredClone(run));
   copy.agent_id = "anonymous-agent";
   copy.tenant_id = "anonymous";
   copy.visibility = "anonymous";
   const raw = copy.raw_evidence;
   if (raw) for (const key of Object.keys(raw)) raw[key] = "Hidden for anonymous access";
   return copy;
+}
+function redactPrivatePaths(value) {
+  if (Array.isArray(value)) return value.map(redactPrivatePaths);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, redactPrivatePaths(item)])
+    );
+  }
+  return typeof value === "string" ? value.replace(/\/Users\/[^`\n]+/g, "Hidden for anonymous access") : value;
 }
 const SettingsRoute = Route$a.update({
   id: "/settings",

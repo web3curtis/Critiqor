@@ -1,6 +1,6 @@
 import { j as jsxRuntimeExports } from "../_libs/react.mjs";
 import { e as useNavigate, d as useRouterState } from "../_libs/tanstack__react-router.mjs";
-import { u as useCritiqor } from "./router-ByJJYtQN.mjs";
+import { u as useCritiqor } from "./router-Cv4vvrPJ.mjs";
 function RunSelector({ label = "Focus run" }) {
   const runs = useCritiqor((state) => state.runs);
   const current = useCritiqor((state) => state.executive.runId);
