@@ -31,10 +31,28 @@ Instead of judging only the final answer, Critiqor looks at what happened while
 the agent worked: framework lifecycle events, tool activity, memory behavior,
 errors, confidence signals, and whether the next run improved.
 
+![Critiqor dashboard overview](assets/screenshots/dashboard-overview.png)
+
+## First diagnosis
+
+With Python 3.10+ and the Codex CLI installed, run these commands in a project
+directory:
+
+```bash
+python3 -m pip install --upgrade critiqor
+critiqor monitor codex
+# Complete a small task in the Codex session, then exit the session.
+critiqor finalize
+```
+
+`finalize` writes the run evidence and diagnosis under `runs/` and opens the
+local dashboard. To review the same result later, run `critiqor dashboard`.
+For Claude Code, use `critiqor monitor cc` instead. If setup fails, run
+`critiqor doctor` and include its output in an
+[issue](https://github.com/web3curtis/Critiqor/issues).
+
 This repository is that existing product, plus a WebMCP evaluation layer added
 for the [WebMCP Hackathon](https://webmcp.devpost.com/).
-
-![Critiqor dashboard overview](assets/screenshots/dashboard-overview.png)
 
 ---
 

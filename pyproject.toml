@@ -23,6 +23,12 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 
+[project.urls]
+Homepage = "https://github.com/web3curtis/Critiqor"
+Source = "https://github.com/web3curtis/Critiqor"
+Issues = "https://github.com/web3curtis/Critiqor/issues"
+Changelog = "https://github.com/web3curtis/Critiqor/blob/web3curtis/critiqor/CHANGELOG.md"
+
 [tool.setuptools.packages.find]
 include = ["critiqor*"]
 exclude = ["critiqor.core_engine_dashboard*"]
