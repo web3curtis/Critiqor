@@ -168,24 +168,35 @@ critiqor dashboard
 critiqor dashboard run_001
 ```
 
-### Planned workflow recordings
-
-- `assets/gifs/critiqor-cli-setup.gif` — framework, observation method, and Anonymous visibility
-- `assets/gifs/critiqor-run-to-dashboard.gif` — observation through dashboard launch
-- `assets/gifs/critiqor-crema-experiment.gif` — matched Crema baseline and improved rerun
-
-The slots and capture requirements are documented in
-[`assets/gifs/README.md`](assets/gifs/README.md).
-
 ## What you can inspect
 
-- **Overview** — verdict, trust, confidence, and the next action
-- **Diagnosis** — root cause, impact, supporting evidence, and alternatives
-- **Playbook** — recommended change, verification steps, and trade-offs
-- **Evidence Explorer** — event timeline, tool activity, memory, and raw snapshots
-- **Runs** — completed evaluations and before/after comparisons
-- **Copy Fix Prompt** — evidence and success criteria formatted for a coding agent
-- **Export** — PDF, Markdown, HTML, PNG, JSON, and ZIP reports
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <strong>Diagnosis — from verdict to action</strong><br><br>
+      <img src="assets/screenshots/critiqor-primary-diagnosis.png" alt="Critiqor Diagnosis showing the unsafe baseline verdict and supporting runtime counts" />
+      <br><br>
+      The Diagnosis view ties the verdict to the selected run. It shows trust,
+      confidence, the failed agent attempt, runtime events, tool calls, and the
+      failure signal behind the recommendation.<br><br>
+      <a href="https://critiqor-crema-baseline.vercel.app/diagnoses?run_id=run_001">Open the baseline diagnosis ↗</a>
+    </td>
+    <td width="50%" valign="top">
+      <strong>Evidence Explorer — inspect the original run</strong><br><br>
+      <img src="assets/screenshots/critiqor-evidence-explorer.png" alt="Critiqor Evidence Explorer showing the improved run timeline and authoritative effect count" />
+      <br><br>
+      The Evidence Explorer exposes the underlying timeline, tool activity,
+      audit status, and authoritative effects. Here it confirms that the
+      improved run handled the scenario safely with one committed effect.<br><br>
+      <a href="https://critiqor-crema-improved.vercel.app/evidence?run_id=run_001">Open the improved evidence ↗</a>
+    </td>
+  </tr>
+</table>
+
+- **Overview** gives the immediate verdict and next action.
+- **Diagnosis and Playbook** explain what failed, what to change, and how to verify it.
+- **Evidence Explorer** traces those claims back to runtime events.
+- **Runs and Export** support comparison and review outside the dashboard.
 
 ## WebMCP research prototype
 
@@ -214,16 +225,3 @@ The public repository is licensed under the
 [Apache License 2.0](LICENSE). Apache 2.0 permits inspection, modification, and
 redistribution under its conditions; the private engine remains private because
 it is not included here.
-
-## Development and releases
-
-```bash
-python3 -m unittest discover -s tests -p 'test_*.py' -q
-python3 -m build
-```
-
-Published PyPI versions remain available for reproducible and legacy
-installations. New users receive the current version with
-`pip install critiqor`. See [`CHANGELOG.md`](CHANGELOG.md) for the chronological
-release history and [`docs/releasing.md`](docs/releasing.md) for the release
-checklist.
