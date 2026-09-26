@@ -27,3 +27,15 @@ historical release: the `0.1.0` `Critiqor` wrapper, `CritiqorResult`, benchmark,
 tracer, and platform APIs are absent. Keep older distributions available for
 users of those APIs until a compatibility decision is made. Version history is
 also useful for reproducible installations.
+
+## Version organization
+
+Keep every published PyPI version available. A normal unpinned
+`pip install critiqor` resolves to the current release, while the retained
+history protects reproducible and legacy installations.
+
+Create one annotated Git tag for each published version, using the exact
+version (for example, `v0.2.18`) and pointing to the source commit used for its
+artifacts. Do not use one Git tag for multiple versions: a tag identifies one
+commit. Group related patch releases under a single series heading in
+`CHANGELOG.md` instead.

@@ -1,6 +1,13 @@
 # Changelog
 
-## 0.2.19 - 2026-09-03
+## 0.2 series — Runtime intelligence CLI
+
+The 0.2 series preserves the `monitor → finalize → dashboard` workflow while
+iteratively improving reliability, privacy, diagnosis, memory evaluation, and
+WebMCP observation. Each published patch remains individually installable and
+should receive its own exact Git tag.
+
+### 0.2.19 - Unreleased
 
 Chrome/WebMCP live observation release.
 
@@ -23,7 +30,7 @@ Chrome/WebMCP live observation release.
 - Added `websocket-client>=1.8` as a package dependency and documented the
   dedicated Chrome profile workflow.
 
-## 0.2.18 - 2026-09-01
+### 0.2.18 - 2026-09-01
 
 WebMCP runtime evaluation and dashboard review release.
 
@@ -40,7 +47,7 @@ WebMCP runtime evaluation and dashboard review release.
   51703 and stops a leftover dashboard process that occupies that port but
   cannot serve the selected run.
 
-## 0.2.16 - 2026-08-04
+### 0.2.16 - 2026-08-04
 
 Runtime memory evaluation release.
 
@@ -60,7 +67,36 @@ Runtime memory evaluation release.
 - Bumped the required Core Engine dashboard version to 0.2.16 so PyPI users see
   the matching memory diagnosis and evidence experience.
 
-## 0.2.11 - 2026-07-31
+### 0.2.15 - 2026-08-01
+
+- Added persistent Private, Shared, Anonymous, and Public visibility configuration.
+- Added per-launch private access tokens and shared invite codes with server-side API enforcement.
+- Added anonymous artifact and identity redaction in the dashboard API.
+- Added dashboard login flow and live visibility details.
+- Refined dark-mode surfaces and diagnosis contrast across the dashboard.
+
+### 0.2.14 - 2026-08-01
+
+- Finalization now generates a local diagnosis when the optional hosted backend is unavailable.
+- Dashboard launch ignores stale server records on other ports and consistently opens port 51703.
+- Terminals without a detectable background now default to high-contrast black primary text while retaining orange and grey accents.
+
+### 0.2.13 - 2026-08-01
+
+- Improved diagnosis contrast by limiting section colours to outer cards and using white nested information cards.
+- Fixed collapsed sidebar layout so only navigation icons remain and the active page stays highlighted.
+- Updated the public website link to `https://critiqor-runtime-insight.vercel.app/`.
+- Made `critiqor finalize` and `critiqor dashboard` require the updated Core Engine dashboard and open it on port 51703 with the selected run.
+
+### 0.2.12 - 2026-08-01
+
+- Restored functional `critiqor agents` and `critiqor config` framework configuration workflows.
+- Scoped dashboard diagnoses, causal analysis, evidence, and fix guidance to the selected runtime.
+- Added a visible, copyable run-specific fix prompt and higher-contrast color-coded diagnosis sections.
+- Simplified dashboard settings and added official Documentation, Website, and Repository links.
+- Updated Critiqor dashboard branding and release metadata.
+
+### 0.2.11 - 2026-07-31
 
 Runtime diagnosis experience and terminal accessibility release.
 
@@ -78,7 +114,7 @@ Runtime diagnosis experience and terminal accessibility release.
 - Replaced terminal-default and low-contrast greys with explicit semantic
   primary, secondary, success, warning, and error colours for each theme.
 
-## 0.2.7 - 2026-07-29
+### 0.2.7 - 2026-07-29
 
 Quality and production-readiness release. No workflow replacement is required.
 
@@ -105,7 +141,9 @@ Quality and production-readiness release. No workflow replacement is required.
 
 The private diagnosis backend remains excluded from the public distribution.
 
-## 0.1.0 - 2026-05-29
+## 0.1 series — Original Python API
+
+### 0.1.0 - 2026-05-29
 
 Initial V1 release of Critiqor.
 
@@ -116,28 +154,3 @@ Initial V1 release of Critiqor.
 - Added trust labels: `High`, `Moderate`, and `Low`.
 - Added support for agents with `run`, `invoke`, `generate`, or `__call__`.
 - Added README onboarding, simple usage example, sandbox experiment, and focused tests.
-# 0.2.12 - 2026-08-01
-
-- Restored functional `critiqor agents` and `critiqor config` framework configuration workflows.
-- Scoped dashboard diagnoses, causal analysis, evidence, and fix guidance to the selected runtime.
-- Added a visible, copyable run-specific fix prompt and higher-contrast color-coded diagnosis sections.
-- Simplified dashboard settings and added official Documentation, Website, and Repository links.
-- Updated Critiqor dashboard branding and release metadata.
-# 0.2.13 - 2026-08-01
-
-- Improved diagnosis contrast by limiting section colours to outer cards and using white nested information cards.
-- Fixed collapsed sidebar layout so only navigation icons remain and the active page stays highlighted.
-- Updated the public website link to `https://critiqor-runtime-insight.vercel.app/`.
-- Made `critiqor finalize` and `critiqor dashboard` require the updated Core Engine dashboard and open it on port 51703 with the selected run.
-# 0.2.14 - 2026-08-01
-
-- Finalization now generates a local diagnosis when the optional hosted backend is unavailable.
-- Dashboard launch ignores stale server records on other ports and consistently opens port 51703.
-- Terminals without a detectable background now default to high-contrast black primary text while retaining orange and grey accents.
-# 0.2.15 - 2026-08-01
-
-- Added persistent Private, Shared, Anonymous, and Public visibility configuration.
-- Added per-launch private access tokens and shared invite codes with server-side API enforcement.
-- Added anonymous artifact and identity redaction in the dashboard API.
-- Added dashboard login flow and live visibility details.
-- Refined dark-mode surfaces and diagnosis contrast across the dashboard.

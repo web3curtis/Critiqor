@@ -16,267 +16,173 @@
   <a href="https://pypi.org/project/critiqor/"><img alt="PyPI" src="https://img.shields.io/pypi/v/critiqor?color=20d6ad"></a>
   <img alt="Python" src="https://img.shields.io/badge/python-3.10%2B-blue">
   <img alt="Status" src="https://img.shields.io/badge/status-alpha-orange">
-  <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
+  <img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-green">
 </p>
 
 <p align="center">
   <code>pip install critiqor</code>
 </p>
 
-Critiqor helps developers understand whether an AI agent run can be trusted.
-It observes the runtime, preserves evidence, generates an evidence-backed
-diagnosis, and opens a local dashboard with a concrete improvement path.
+Critiqor helps developers answer one question after an AI agent finishes:
+**can I trust what just happened?**
 
-Instead of judging only the final answer, Critiqor looks at what happened while
-the agent worked: framework lifecycle events, tool activity, memory behavior,
-errors, confidence signals, and whether the next run improved.
+It observes the runtime—not only the final answer—then turns tool activity,
+framework events, memory behavior, errors, and confidence signals into an
+evidence-backed diagnosis and a concrete improvement path.
 
-![Critiqor dashboard overview](assets/screenshots/dashboard-overview.png)
+![Critiqor showing a production-ready improved WebMCP run](assets/screenshots/webmcp-approval-dashboard.png)
 
-## First diagnosis
+## From agent run to actionable diagnosis
 
-With Python 3.10+ and the Codex CLI installed, run these commands in a project
-directory:
-
-```bash
-python3 -m pip install --upgrade critiqor
-critiqor monitor codex
-# Complete a small task in the Codex session, then exit the session.
-critiqor finalize
+```text
+Choose a framework → Observe the run → Finalize → Diagnose → Improve → Compare
 ```
 
-`finalize` writes the run evidence and diagnosis under `runs/` and opens the
-local dashboard. To review the same result later, run `critiqor dashboard`.
-For Claude Code, use `critiqor monitor cc` instead. If setup fails, run
-`critiqor doctor` and include its output in an
-[issue](https://github.com/web3curtis/Critiqor/issues).
-
-This repository is that existing product, plus a WebMCP evaluation layer added
-for the [WebMCP Hackathon](https://webmcp.devpost.com/).
-
----
-
-## WebMCP Hackathon
-
-**Live judge experience:** [Open the Critiqor × Crema experiment](https://critiqor-crema-reliability.terrence-qiu-7311.chatgpt.site/?agent-playback=1)
-
-No login, local service, private path, API key, or checkout is required. In a
-WebMCP-capable browser, ask the agent: **“Show the improved run, then explain
-why it is safer.”** The page exposes five typed WebMCP tools for inspecting the
-verified experiment, reading its playbook and method, and visibly replaying
-either experiment arm. Humans can inspect the same evidence, genuine Crema
-target, and Critiqor dashboards side by side.
-
-**Research question:** Which mechanisms that helped MCP become more production-ready can be adapted to improve WebMCP reliability?
-
-Critiqor already answered whether an agent run can be trusted, why, and whether a later run improved. The hackathon work extends that same observe → diagnose → improve loop to WebMCP, instead of shipping a separate product.
-
-When a run includes WebMCP events, Critiqor now:
-
-- records consequential tool calls, outcomes, and authoritative application state
-- treats a lost or timed-out response as `unknown`, not as a safe failure
-- flags a blind retry of the same intent before the first outcome is reconciled
-- writes a run-specific improvement playbook from that evidence
-- compares a matched later run and reports whether the same failure recurred or was resolved
-
-The first implementation focuses on one failure: retrying a consequential WebMCP action after an ambiguous outcome. A raw agent can duplicate an effect. After the playbook, the same task reconciles first and stops at one effect.
-
-### Work added during the submission period
-
-The underlying Critiqor product predates the challenge. The challenge-specific
-work, added from August 25 through September 3, 2026, is the WebMCP browser
-monitor, normalized runtime evidence, controlled lost-response fault,
-reconciliation checks, matched Crema experiment, public anonymized dashboards,
-five page tools, and the judge-facing experiment site. The implementation and
-reproduction instructions live in
-[`explorations/webmcp-reliability`](explorations/webmcp-reliability), with the
-runtime adapter documented in
-[`docs/webmcp-browser-monitor.md`](docs/webmcp-browser-monitor.md).
-
----
-
-## Why Runtime Evaluation Matters
-
-An agent can produce a useful-looking response while still behaving unreliably
-during execution. It might ignore relevant memory, miss a tool failure, recover
-from an error in a way that hides risk, or appear confident without enough
-supporting evidence.
-
-Critiqor gives developers a practical review layer for answering:
-
-- Can I trust this agent run?
-- Why?
-- What evidence supports that diagnosis?
-- What should I change?
-- Did the improvement work on later runs?
-
----
-
-## Supported Agent Frameworks
-
-Critiqor 0.2.19 supports framework-based monitoring for:
-
-- OpenClaw
-- Claude Code
-- Codex CLI
-- Custom CLI frameworks configured with `critiqor agents` or `critiqor config`
-
-Critiqor integrates into your existing workflow. It launches or observes the
-agent command, lets you work normally, then finalizes the run into a local
-diagnosis dashboard.
-
----
-
-## Installation
-
-Install Critiqor from PyPI:
-
 ```bash
-pip install critiqor
-```
-
-Check the CLI:
-
-```bash
-critiqor help
-```
-
-Use Python 3.10 or newer. `pipx install critiqor` is a good option if you prefer
-an isolated CLI install.
-
----
-
-## Quick Start
-
-### 1. Choose an agent framework
-
-```bash
+# Choose OpenClaw, Claude Code, Codex CLI, or a custom framework
 critiqor agents
-```
 
-The guided setup lets you choose OpenClaw, Claude Code, Codex, or a custom CLI
-framework and observation method.
-
-### 2. Start an observation
-
-Use the monitor command for your framework:
-
-```bash
-critiqor monitor openclaw
-critiqor monitor cc
-critiqor monitor codex
-critiqor monitor webmcp --help
-```
-
-Custom frameworks can be launched through the command you configure in the
-guided setup.
-
-### 3. Work normally
-
-Use the agent as you usually would. Critiqor stays beside the workflow and
-collects runtime evidence for review.
-
-### 4. Finalize the run
-
-```bash
+# Work with the agent through the configured monitor, then finalize
 critiqor finalize
 ```
 
-Critiqor stops the observation, generates a diagnosis, and opens the local
-dashboard.
+Finalization opens the Critiqor dashboard for the selected run. From there you
+can inspect the primary diagnosis, trace it back to runtime evidence, follow a
+run-specific playbook, and compare a later run to see whether the change worked.
 
-### 5. Reopen reports
+## Highlights
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <strong>Production verdict at a glance</strong><br><br>
+      <img src="assets/screenshots/dashboard-overview.png" alt="Critiqor dashboard overview with trust score, confidence, and next action" />
+      <br><br>See trust, confidence, the biggest runtime issue, and the next action without searching through logs.
+    </td>
+    <td width="50%" valign="top">
+      <strong>Evidence you can inspect</strong><br><br>
+      <img src="assets/screenshots/dashboard-evidence-explorer.png" alt="Critiqor Evidence Explorer showing the runtime timeline" />
+      <br><br>Trace a conclusion back to timeline events, tool calls, memory behavior, and original event snapshots.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <strong>Primary diagnosis and playbook</strong><br><br>
+      <em>Screenshot placeholder — anonymous Diagnosis and Improvement Playbook views.</em>
+      <br><br>Understand the root cause, why it matters, what to change, and how to verify the fix.
+    </td>
+    <td width="50%" valign="top">
+      <strong>Matched before-and-after evaluation</strong><br><br>
+      <img src="assets/screenshots/webmcp-approval-dashboard.png" alt="Critiqor showing a resolved matched WebMCP rerun" />
+      <br><br>Compare the same task under the same adversity and see whether the failure was actually resolved.
+    </td>
+  </tr>
+</table>
+
+## Privacy comes first
+
+Critiqor supports four deliberate visibility modes:
+
+| Mode | Intended use |
+| --- | --- |
+| **Private** | Local owner review |
+| **Shared** | Invite-based team review |
+| **Anonymous** | Redacted review without identifying details |
+| **Public** | Open access only when intentionally enabled |
+
+Use **Anonymous** for screenshots, demonstrations, and external reviews.
+Anonymous dashboard responses replace user home and temporary paths, remove
+agent and tenant identifiers, and hide raw artifact fields. Screenshots and
+exports must still be reviewed for task-specific URLs or other sensitive
+context before publication.
 
 ```bash
+critiqor config
+```
+
+Choose **Anonymous** under visibility, then reopen or regenerate the dashboard.
+
+## CLI workflow
+
+The guided setup connects Critiqor to the way you already use an agent:
+
+- **OpenClaw** — `critiqor monitor openclaw`
+- **Claude Code** — `critiqor monitor cc`
+- **Codex CLI** — `critiqor monitor codex`
+- **WebMCP** — `critiqor monitor webmcp`
+- **Custom CLI framework** — configure its command with `critiqor agents`
+
+<p align="center">
+  <em>GIF placeholder — framework selection → observation method → Anonymous visibility.<br>
+  Planned file: <code>assets/gifs/critiqor-cli-setup.gif</code></em>
+</p>
+
+After working normally, finalize and revisit reports with:
+
+```bash
+critiqor finalize
 critiqor runs
 critiqor dashboard
 critiqor dashboard run_001
 ```
 
----
+<p align="center">
+  <em>GIF placeholder — monitoring → agent task → finalize → dashboard opens.<br>
+  Planned file: <code>assets/gifs/critiqor-run-to-dashboard.gif</code></em>
+</p>
 
-## CLI Workflow
+Other useful commands:
 
-```text
-critiqor agents
-        ↓
-Select Framework
-        ↓
-Choose Observation Method
-        ↓
-Launch Agent
-        ↓
-Work Normally
-        ↓
-critiqor finalize
-        ↓
-Dashboard Opens
-```
+- `critiqor help` — list the available CLI workflows
+- `critiqor config` — update observation and visibility settings
+- `critiqor doctor` — check local readiness
+- `critiqor runs` — list completed evaluations
 
-Core commands:
+## What the dashboard answers
 
-- `critiqor agents` - choose and configure an AI agent framework
-- `critiqor config` - update observation method or custom framework details
-- `critiqor monitor openclaw` - launch OpenClaw and begin runtime observation
-- `critiqor monitor cc` - launch Claude Code and begin runtime observation
-- `critiqor monitor codex` - launch Codex CLI and begin runtime observation
-- `critiqor monitor webmcp` - observe live WebMCP activity in one Chrome tab
-- `critiqor finalize` - stop observation, generate diagnosis, and open dashboard
-- `critiqor dashboard [run_id]` - open the latest or selected diagnosis dashboard
-- `critiqor runs` - list completed evaluations with summaries
-- `critiqor doctor` - check local readiness before running evaluations
+- **Overview:** Is this run production-ready, and what needs attention first?
+- **Diagnosis:** What is the primary issue, and what evidence supports it?
+- **Playbook:** What should change, and how should the improvement be verified?
+- **Evidence Explorer:** What actually happened during execution?
+- **Runs:** Did a later matched run improve?
+- **Copy Fix Prompt:** How can I hand the evidence and success criteria to a coding agent?
+- **Export:** How can I share a PDF, Markdown, HTML, PNG, JSON, or ZIP report?
 
----
+## WebMCP research prototype
 
-## Dashboard
+Critiqor WebMCP began as an initial research prototype for the
+[OpenAI WebMCP Challenge](https://openai.com/webmcp-challenge/). It applies
+Critiqor's observe → diagnose → improve loop to a consequential browser action
+whose response can be lost even when the underlying effect succeeds.
 
-After finalization, Critiqor opens a local dashboard focused on the developer
-questions that matter after an agent run.
+- [View the Critiqor WebMCP submission on Devpost](https://devpost.com/software/critiqor-webmcp?ref_content=user-portfolio&ref_feature=in_progress)
+- [Open the live Critiqor × Crema reliability artifact](https://critiqor-crema-reliability.terrence-qiu-7311.chatgpt.site/)
 
-Key sections:
+The controlled Crema experiment compares two matched runs:
 
-- **Overview** - production verdict, trust score, confidence, current run, and the
-  fastest path to diagnosis, evidence, playbook, and comparison.
-- **Runs** - completed evaluations you can reopen and compare.
-- **Diagnosis** - the primary issue, root cause, evidence, runtime impact, and
-  engineering explanation.
-- **Playbook** - recommended changes, verification steps, expected improvement,
-  trade-offs, and alternatives.
-- **Evidence Explorer** - timeline events, tool calls, memory events, evidence
-  status, and raw event snapshots.
-- **Visibility** - private, shared, anonymous, and public review modes.
-- **Appearance** - readable dashboard display settings.
-- **Export Diagnosis** - PDF, Markdown, HTML, PNG, diagnosis JSON, session JSON,
-  and ZIP export options.
-- **Copy Fix Prompt** - a run-specific prompt you can paste into an AI coding
-  assistant to improve the agent using the observed evidence.
+1. A baseline agent loses the response to a committed cart mutation and retries
+   blindly, creating a duplicate effect.
+2. The improved agent preserves uncertainty, reconciles against authoritative
+   state, and stops after confirming the original effect.
 
-The dashboard supports light and dark appearance modes, so exported screenshots
-and team reviews can match the environment where developers are working.
+Critiqor records the consequential invocation, ambiguous outcome,
+reconciliation attempt, and authoritative state so the conclusion remains
+auditable rather than inferred from an error message.
 
-![Critiqor Evidence Explorer](assets/screenshots/dashboard-evidence-explorer.png)
+<p align="center">
+  <em>GIF placeholder — matched baseline and improved Crema experiment.<br>
+  Planned file: <code>assets/gifs/critiqor-crema-experiment.gif</code></em>
+</p>
 
----
+The browser monitor, evidence contract, and reproduction instructions are in
+[`explorations/webmcp-reliability`](explorations/webmcp-reliability) and
+[`docs/webmcp-browser-monitor.md`](docs/webmcp-browser-monitor.md).
 
-## Live WebMCP Browser Monitoring
+## Live WebMCP monitoring
 
-Critiqor 0.2.19 can observe browser-native WebMCP discovery, invocation, outcome,
-reconciliation, and authoritative-state events in real time through Chrome's
-remote-debugging endpoint. It does not infer a failed consequential action was
-uncommitted: an opaque error, cancellation, or intentionally lost response is
-recorded as `unknown` until target-owned state reconciles it.
-
-Start a separate Chrome profile with remote debugging enabled. For example, on
-macOS:
-
-```bash
-/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome \
-  --remote-debugging-port=9222 \
-  --user-data-dir=/tmp/critiqor-chrome
-```
-
-Open the WebMCP site in that Chrome instance, then attach Critiqor with the
-endpoint stated explicitly:
+Critiqor can observe browser-native WebMCP discovery, invocation, outcome,
+reconciliation, and authoritative-state events through an explicitly approved
+Chrome remote-debugging endpoint.
 
 ```bash
 critiqor monitor webmcp \
@@ -289,120 +195,55 @@ critiqor monitor webmcp \
   --authoritative-tool get_cart
 ```
 
-`CRITIQOR_CDP_URL` can supply the endpoint instead of `--cdp-url`. The target
-URL must match exactly one open page by URL prefix. Critiqor does not enable
-remote debugging in an arbitrary Chrome process; Chrome must expose or approve
-the endpoint first. Press Ctrl-C after the browser task, then run `critiqor
-finalize` to generate the diagnosis and playbook.
+Critiqor does not treat an opaque error, cancellation, or lost response as a
+safe failure. The result remains `unknown` until target-owned state reconciles
+it. Optional fault injection is narrow, one-shot, and bound to the exact target,
+HTTP method, and consequential tool.
 
-Fault injection is optional and deliberately narrow. For the Crema cart
-mutation experiment, bind the one-shot response fault to the exact URL, HTTP
-method, and consequential WebMCP tool:
+## Installation and compatibility
+
+Critiqor requires Python 3.10 or newer. For an isolated CLI installation:
 
 ```bash
-critiqor monitor webmcp \
-  --cdp-url http://127.0.0.1:9222 \
-  --target-url http://127.0.0.1:3000 \
-  --task-id add-one-bianca \
-  --scenario-id commit-lost-response \
-  --consequential-tool add_to_cart \
-  --reconciliation-tool get_cart \
-  --authoritative-tool get_cart \
-  --allowed-api-origin http://localhost:3001 \
-  --fault-response-url http://localhost:3001/operations/add-to-cart \
-  --fault-method POST \
-  --fault-tool add_to_cart \
-  --authoritative-state-url http://localhost:3001/operations/get-cart
+pipx install critiqor
+critiqor help
+critiqor doctor
 ```
 
-The adapter injects at most once and only when exactly one matching tool
-invocation is pending. It refuses an ambiguous concurrent correlation. See
-`docs/webmcp-browser-monitor.md` for the setup and evidence contract.
+| Operating system | Support |
+| --- | --- |
+| macOS | Supported |
+| Linux | Supported |
+| Windows | WSL2 recommended for terminal-agent monitoring; native Python supports basic CLI use |
 
-## What's New in 0.2.19
+The PyPI release history is intentionally retained for reproducible installs
+and compatibility with earlier APIs. New users receive the current release
+with `pip install critiqor`; they do not need to install earlier versions.
 
-Critiqor 0.2.19 adds a public Chrome/WebMCP runtime adapter.
+## Architecture and licensing
 
-- `critiqor monitor webmcp` connects to an explicit Chrome remote-debugging
-  endpoint and validates WebMCP/CDP support before creating a run.
-- Live registry, dispatch, outcome, reconciliation, and authoritative-effect
-  evidence is normalized into Critiqor's WebMCP event vocabulary.
-- Optional response-stage fault injection supports controlled lost-response
-  experiments without claiming that an ambiguous action failed safely.
-- `websocket-client` is now installed as a runtime dependency.
+This repository contains Critiqor's public CLI, runtime collectors, evidence
+schemas, integrations, and dashboard. Proprietary diagnosis, scoring,
+benchmarking, and reliability-engine implementation is not distributed in this
+repository.
 
-## What's New in 0.2.18
+The public repository is licensed under the [Apache License 2.0](LICENSE).
+Apache 2.0 permits use, inspection, modification, and redistribution subject to
+its conditions; it does not conceal public source code. Critiqor's private
+engine stays private by remaining outside the distributed package and public
+repository.
 
-Critiqor 0.2.18 adds WebMCP runtime evaluation when a run includes WebMCP
-events, plus a tighter dashboard review path.
+## Release history
 
-- WebMCP runs produce an evidence-backed diagnosis, a run-specific improvement
-  playbook, and a detailed Copy Fix Prompt from the selected run artifacts.
-- Diagnosis, Playbook, and Evidence share a Focus run dropdown bound to
-  `run_id`, so another run is never substituted.
-- Engineer Brief, Executive Summary, and Agent Health cards open the same
-  keyboard-accessible detail view. Missing fields stay unavailable.
-- The local dashboard is served from the bundled production build.
+Published versions remain available on [PyPI](https://pypi.org/project/critiqor/#history)
+so existing pinned installations continue to work. Git tags should identify
+the exact source commit for each published release; related patch releases are
+summarized together in [`CHANGELOG.md`](CHANGELOG.md) rather than collapsed into
+one ambiguous tag.
 
-## What's New in 0.2.16
-
-Critiqor 0.2.16 focuses on runtime memory evaluation and the matching dashboard
-experience.
-
-- Memory behavior is included in the diagnosis workflow when evidence is
-  available.
-- Retrieved, injected, referenced, unused, irrelevant, missed, created, ignored,
-  and not-stored memory events can be explained from runtime evidence.
-- Copy Fix Prompt includes memory behavior, supporting evidence, suggested
-  architectural improvements, testing strategy, and success criteria.
-- The dashboard reflects the current diagnosis, evidence, playbook, export, and
-  visibility workflow.
-- OpenClaw, Claude Code, Codex CLI, and custom framework workflows are presented
-  as first-class ways to observe AI agents.
-
----
-
-## Export and Team Review
-
-Critiqor reports can be used to:
-
-- improve prompts, tools, memory, and agent architecture
-- share a diagnosis with teammates
-- document runtime evaluations
-- compare whether changes improved later runs
-- provide evidence for release or review decisions
-
-Export options include PDF, Markdown, HTML, PNG, diagnosis JSON, session JSON,
-and ZIP bundles.
-
----
-
-## Visibility Modes
-
-Critiqor supports dashboard visibility settings from the developer's point of
-view:
-
-- **Private** - local owner review.
-- **Shared** - invite-based review for teammates.
-- **Anonymous** - redacted review without exposing identifying details.
-- **Public** - open dashboard access when you intentionally choose it.
-
-Configure visibility through `critiqor config`, then relaunch the dashboard.
-
----
-
-## Operating System Compatibility
-
-| Operating system | Compatibility | Recommended install path |
-| --- | --- | --- |
-| macOS | Supported | Python 3.10+ with `pip` or `pipx` |
-| Linux | Supported | Distro Python package manager, then `pip` or `pipx` |
-| Windows | Supported with WSL recommended | WSL2 for terminal agent workflows, or native Windows Python for basic CLI usage |
-
-For the most reliable terminal-agent monitoring on Windows, use WSL2.
-
----
+See [`docs/releasing.md`](docs/releasing.md) for the release checklist and
+compatibility notes.
 
 ## License
 
-MIT
+Apache-2.0

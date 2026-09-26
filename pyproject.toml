@@ -9,7 +9,7 @@ description = "Runtime intelligence CLI for reviewing AI agent reliability."
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{ name = "Critiqor Contributors" }]
-license = "MIT"
+license = "Apache-2.0"
 keywords = ["ai", "agents", "openclaw", "observability", "reliability", "diagnosis"]
 dependencies = ["click>=8.1", "cryptography>=43", "websocket-client>=1.8"]
 classifiers = [
